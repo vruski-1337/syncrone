@@ -1,0 +1,25 @@
+{
+  "name": "syncrone",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vruski-1337/syncrone.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/vruski-1337/syncrone/issues"
+  },
+  "homepage": "https://github.com/vruski-1337/syncrone#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
