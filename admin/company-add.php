@@ -66,8 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->close();
 
                 // Create company
+                $subIdParam = $sub_id ?: null;
                 $stmt = $conn->prepare("INSERT INTO companies (name, email, phone, address, logo, owner_id, subscription_id, marquee_message, is_active) VALUES (?,?,?,?,?,?,?,?,?)");
-                $stmt->bind_param('sssssiisi', $name, $email, $phone, $address, $logoFilename, $ownerId, $sub_id ?: null, $marquee, $is_active);
+                $stmt->bind_param('sssssiisi', $name, $email, $phone, $address, $logoFilename, $ownerId, $subIdParam, $marquee, $is_active);
                 $stmt->execute();
                 $companyId = $conn->insert_id;
                 $stmt->close();
