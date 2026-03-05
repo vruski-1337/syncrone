@@ -5,7 +5,10 @@ define('DB_PASS', '');
 define('DB_NAME', 'pharma_care');
 define('SITE_NAME', 'Pharma Care');
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
-define('SITE_URL', 'http://localhost/pharma-care');
+$_protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$_host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
+define('SITE_URL', $_protocol . '://' . $_host . '/pharma-care');
+unset($_protocol, $_host);
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {

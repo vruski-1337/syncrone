@@ -98,7 +98,7 @@ function uploadLogo($file) {
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->file($file['tmp_name']);
     if (!in_array($mime, $allowed)) {
-        return ['success' => false, 'error' => 'Invalid file type. Only JPG, PNG, GIF allowed.'];
+        return ['success' => false, 'error' => 'Invalid file type. Only JPG, PNG, GIF, WEBP allowed.'];
     }
 
     $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime];
