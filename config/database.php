@@ -10,6 +10,10 @@ $_host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
 define('SITE_URL', $_protocol . '://' . $_host . '/pharma-care');
 unset($_protocol, $_host);
 
+if (!class_exists('mysqli')) {
+    die('MySQLi extension is not enabled. Install the php-mysql package and restart the PHP server.');
+}
+
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
