@@ -69,11 +69,11 @@ $stmt->close();
     <div class="table-responsive">
         <table class="table table-hover table-striped mb-0">
             <thead>
-                <tr><th>#</th><th>Product Name</th><th>Category</th><th>Unit</th><th>Purchase Price</th><th>Selling Price</th><th>Stock</th><th>Expiry</th><th>Actions</th></tr>
+                <tr><th>#</th><th>Product Name</th><th>Manufacturer</th><th>Batch</th><th>Category</th><th>Unit</th><th>Purchase Price</th><th>Selling Price</th><th>Stock</th><th>Expiry</th><th>Actions</th></tr>
             </thead>
             <tbody>
             <?php if (empty($products)): ?>
-                <tr><td colspan="9" class="text-center py-4 text-muted">
+                <tr><td colspan="11" class="text-center py-4 text-muted">
                     <i class="fas fa-pills fa-2x mb-2 d-block opacity-25"></i>No products found.
                 </td></tr>
             <?php else: foreach ($products as $i => $p): ?>
@@ -83,6 +83,8 @@ $stmt->close();
                         <strong><?= sanitize($p['name']) ?></strong>
                         <?php if ($p['description']): ?><br><small class="text-muted"><?= sanitize(substr($p['description'], 0, 60)) ?></small><?php endif; ?>
                     </td>
+                    <td><?= sanitize($p['manufacturer'] ?? '—') ?></td>
+                    <td><?= sanitize($p['batch_number'] ?? '—') ?></td>
                     <td><?= sanitize($p['category_name'] ?? '—') ?></td>
                     <td><?= sanitize($p['unit_name'] ?? '—') ?></td>
                     <td><?= formatCurrency($p['purchase_price']) ?></td>

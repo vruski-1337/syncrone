@@ -48,6 +48,9 @@ $roleBadge   = $currentRole === 'owner' ? 'bg-success' : 'bg-info text-dark';
         <a href="sales.php" class="<?= $activePage === 'sales' ? 'active' : '' ?>">
             <i class="fas fa-receipt"></i> Sales
         </a>
+        <a href="patients.php" class="<?= $activePage === 'patients' ? 'active' : '' ?>">
+            <i class="fas fa-user-injured"></i> Patients
+        </a>
         <a href="sale-add.php" class="<?= $activePage === 'sale-add' ? 'active' : '' ?>">
             <i class="fas fa-plus-circle"></i> New Sale
         </a>

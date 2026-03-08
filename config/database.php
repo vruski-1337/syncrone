@@ -275,6 +275,11 @@ class TempSQLiteConnection {
                 owner_id INTEGER,
                 subscription_id INTEGER,
                 marquee_message TEXT,
+                gst_number TEXT,
+                gst_percentage REAL DEFAULT 0,
+                tagline TEXT,
+                usage_paused INTEGER DEFAULT 0,
+                pause_message TEXT,
                 is_active INTEGER DEFAULT 1,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -325,6 +330,8 @@ class TempSQLiteConnection {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 company_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
+                manufacturer TEXT,
+                batch_number TEXT,
                 category_id INTEGER,
                 unit_id INTEGER,
                 purchase_price REAL NOT NULL DEFAULT 0,
@@ -357,6 +364,7 @@ class TempSQLiteConnection {
                 company_id INTEGER NOT NULL,
                 manager_id INTEGER,
                 doctor_id INTEGER,
+                patient_id INTEGER,
                 invoice_number TEXT NOT NULL UNIQUE,
                 customer_name TEXT,
                 customer_phone TEXT,
@@ -368,7 +376,31 @@ class TempSQLiteConnection {
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
                 FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,
-                FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
+                FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL,
+                FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL
+            )",
+            "CREATE TABLE IF NOT EXISTS patients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                phone TEXT,
+                gender TEXT,
+                age INTEGER,
+                address TEXT,
+                notes TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )",
+            "CREATE TABLE IF NOT EXISTS patient_prescriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id INTEGER NOT NULL,
+                file_name TEXT NOT NULL,
+                original_name TEXT,
+                notes TEXT,
+                uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
             )",
             "CREATE TABLE IF NOT EXISTS sale_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -448,6 +480,35 @@ function runSchemaMigrations($conn): void {
     }
 
     if (DB_DRIVER === 'mysql' && $conn instanceof mysqli) {
+        if (!mysqlTableExists($conn, 'patients')) {
+            $conn->query("CREATE TABLE IF NOT EXISTS patients (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                company_id INT NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                phone VARCHAR(30),
+                gender ENUM('male','female','other') DEFAULT NULL,
+                age INT DEFAULT NULL,
+                address TEXT,
+                notes TEXT,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        }
+
+        if (!mysqlTableExists($conn, 'patient_prescriptions')) {
+            $conn->query("CREATE TABLE IF NOT EXISTS patient_prescriptions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                patient_id INT NOT NULL,
+                file_name VARCHAR(255) NOT NULL,
+                original_name VARCHAR(255),
+                notes TEXT,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        }
+
         if (!mysqlTableExists($conn, 'doctors')) {
             $conn->query("CREATE TABLE IF NOT EXISTS doctors (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -464,6 +525,29 @@ function runSchemaMigrations($conn): void {
             ) ENGINE=InnoDB");
         }
 
+        if (!mysqlColumnExists($conn, 'companies', 'gst_number')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN gst_number VARCHAR(50) NULL AFTER marquee_message");
+        }
+        if (!mysqlColumnExists($conn, 'companies', 'gst_percentage')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN gst_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00 AFTER gst_number");
+        }
+        if (!mysqlColumnExists($conn, 'companies', 'tagline')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN tagline VARCHAR(255) NULL AFTER gst_percentage");
+        }
+        if (!mysqlColumnExists($conn, 'companies', 'usage_paused')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN usage_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER tagline");
+        }
+        if (!mysqlColumnExists($conn, 'companies', 'pause_message')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN pause_message TEXT NULL AFTER usage_paused");
+        }
+
+        if (!mysqlColumnExists($conn, 'products', 'manufacturer')) {
+            $conn->query("ALTER TABLE products ADD COLUMN manufacturer VARCHAR(200) NULL AFTER name");
+        }
+        if (!mysqlColumnExists($conn, 'products', 'batch_number')) {
+            $conn->query("ALTER TABLE products ADD COLUMN batch_number VARCHAR(100) NULL AFTER manufacturer");
+        }
+
         if (!mysqlColumnExists($conn, 'products', 'low_stock_threshold')) {
             $conn->query("ALTER TABLE products ADD COLUMN low_stock_threshold DECIMAL(10,2) NOT NULL DEFAULT 10.00 AFTER stock_quantity");
         }
@@ -474,9 +558,38 @@ function runSchemaMigrations($conn): void {
             $conn->query("ALTER TABLE sales ADD COLUMN doctor_id INT NULL AFTER manager_id");
             $conn->query("ALTER TABLE sales ADD CONSTRAINT fk_sales_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL");
         }
+        if (!mysqlColumnExists($conn, 'sales', 'patient_id')) {
+            $conn->query("ALTER TABLE sales ADD COLUMN patient_id INT NULL AFTER doctor_id");
+            $conn->query("ALTER TABLE sales ADD CONSTRAINT fk_sales_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL");
+        }
     }
 
     if (DB_DRIVER === 'sqlite-temp' && $conn instanceof TempSQLiteConnection) {
+        $conn->query("CREATE TABLE IF NOT EXISTS patients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            phone TEXT,
+            gender TEXT,
+            age INTEGER,
+            address TEXT,
+            notes TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+        )");
+
+        $conn->query("CREATE TABLE IF NOT EXISTS patient_prescriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            file_name TEXT NOT NULL,
+            original_name TEXT,
+            notes TEXT,
+            uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+        )");
+
         $conn->query("CREATE TABLE IF NOT EXISTS doctors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER NOT NULL,
@@ -491,6 +604,29 @@ function runSchemaMigrations($conn): void {
             FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
         )");
 
+        if (!sqliteColumnExists($conn, 'companies', 'gst_number')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN gst_number TEXT");
+        }
+        if (!sqliteColumnExists($conn, 'companies', 'gst_percentage')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN gst_percentage REAL NOT NULL DEFAULT 0");
+        }
+        if (!sqliteColumnExists($conn, 'companies', 'tagline')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN tagline TEXT");
+        }
+        if (!sqliteColumnExists($conn, 'companies', 'usage_paused')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN usage_paused INTEGER NOT NULL DEFAULT 0");
+        }
+        if (!sqliteColumnExists($conn, 'companies', 'pause_message')) {
+            $conn->query("ALTER TABLE companies ADD COLUMN pause_message TEXT");
+        }
+
+        if (!sqliteColumnExists($conn, 'products', 'manufacturer')) {
+            $conn->query("ALTER TABLE products ADD COLUMN manufacturer TEXT");
+        }
+        if (!sqliteColumnExists($conn, 'products', 'batch_number')) {
+            $conn->query("ALTER TABLE products ADD COLUMN batch_number TEXT");
+        }
+
         if (!sqliteColumnExists($conn, 'products', 'low_stock_threshold')) {
             $conn->query("ALTER TABLE products ADD COLUMN low_stock_threshold REAL NOT NULL DEFAULT 10");
         }
@@ -499,6 +635,9 @@ function runSchemaMigrations($conn): void {
         }
         if (!sqliteColumnExists($conn, 'sales', 'doctor_id')) {
             $conn->query("ALTER TABLE sales ADD COLUMN doctor_id INTEGER");
+        }
+        if (!sqliteColumnExists($conn, 'sales', 'patient_id')) {
+            $conn->query("ALTER TABLE sales ADD COLUMN patient_id INTEGER");
         }
     }
 }

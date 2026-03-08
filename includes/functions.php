@@ -154,6 +154,63 @@ function getLogoUrl($filename, $baseDepth = 1) {
     return $prefix . 'uploads/logos/' . $filename;
 }
 
+function uploadPrescription($file) {
+    $allowed = [
+        'application/pdf' => 'pdf',
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+    $maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!isset($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
+        return ['success' => false, 'error' => 'Prescription upload failed.'];
+    }
+    if ($file['size'] > $maxSize) {
+        return ['success' => false, 'error' => 'Prescription file too large. Max 5MB.'];
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    if (!isset($allowed[$mime])) {
+        return ['success' => false, 'error' => 'Invalid prescription format. Use PDF/JPG/PNG/WEBP.'];
+    }
+
+    $dir = UPLOAD_PATH . 'prescriptions/';
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return ['success' => false, 'error' => 'Prescription directory is not available.'];
+    }
+    if (!is_writable($dir)) {
+        return ['success' => false, 'error' => 'Prescription directory is not writable.'];
+    }
+
+    $ext = $allowed[$mime];
+    $filename = 'rx_' . bin2hex(random_bytes(12)) . '.' . $ext;
+    $dest = $dir . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $dest)) {
+        return ['success' => false, 'error' => 'Could not save prescription file.'];
+    }
+
+    return [
+        'success' => true,
+        'filename' => $filename,
+        'original_name' => $file['name'] ?? $filename,
+    ];
+}
+
+function deletePrescriptionFile($filename) {
+    if ($filename && file_exists(UPLOAD_PATH . 'prescriptions/' . $filename)) {
+        unlink(UPLOAD_PATH . 'prescriptions/' . $filename);
+    }
+}
+
+function getPrescriptionUrl($filename, $baseDepth = 1) {
+    if (!$filename) return null;
+    $prefix = str_repeat('../', $baseDepth);
+    return $prefix . 'uploads/prescriptions/' . $filename;
+}
+
 function renderFlash() {
     $flash = getFlash();
     if (!$flash) return '';

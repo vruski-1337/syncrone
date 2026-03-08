@@ -24,6 +24,7 @@ $stmt->close();
 if (!$company) { setFlash('danger', 'Company not found.'); header('Location: companies.php'); exit; }
 
 $subscriptions = $conn->query("SELECT id, name, price, duration_days FROM subscriptions WHERE is_active = 1 ORDER BY name")->fetch_all(MYSQLI_ASSOC);
+$subStatus = checkSubscription($conn, $id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -34,12 +35,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone     = trim($_POST['phone'] ?? '');
         $address   = trim($_POST['address'] ?? '');
         $marquee   = trim($_POST['marquee_message'] ?? '');
+        $gstNumber = trim($_POST['gst_number'] ?? '');
+        $gstPercent = (float)($_POST['gst_percentage'] ?? 0);
+        $tagline   = trim($_POST['tagline'] ?? '');
+        $usagePaused = isset($_POST['usage_paused']) ? 1 : 0;
+        $pauseMessage = trim($_POST['pause_message'] ?? '');
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $sub_id    = (int)($_POST['subscription_id'] ?? 0);
         $ownEmail  = trim($_POST['owner_email'] ?? '');
         $ownFull   = trim($_POST['owner_fullname'] ?? '');
 
         if (!$name) $errors[] = 'Company name is required.';
+        if ($gstPercent < 0 || $gstPercent > 100) $errors[] = 'GST percentage must be between 0 and 100.';
+        if ($usagePaused && $pauseMessage === '') $errors[] = 'Pause message is required when usage is paused.';
 
         // Logo upload
         $logoFilename = $company['logo'];
@@ -56,9 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->begin_transaction();
             try {
                 // Update company
-                $stmt = $conn->prepare("UPDATE companies SET name=?, email=?, phone=?, address=?, logo=?, subscription_id=?, marquee_message=?, is_active=?, updated_at=NOW() WHERE id=?");
+                $stmt = $conn->prepare("UPDATE companies SET name=?, email=?, phone=?, address=?, logo=?, subscription_id=?, marquee_message=?, gst_number=?, gst_percentage=?, tagline=?, usage_paused=?, pause_message=?, is_active=?, updated_at=NOW() WHERE id=?");
                 $sub = $sub_id ?: null;
-                $stmt->bind_param('sssssisii', $name, $email, $phone, $address, $logoFilename, $sub, $marquee, $is_active, $id);
+                $stmt->bind_param('sssssissdsisii', $name, $email, $phone, $address, $logoFilename, $sub, $marquee, $gstNumber, $gstPercent, $tagline, $usagePaused, $pauseMessage, $is_active, $id);
                 $stmt->execute();
                 $stmt->close();
 
@@ -132,6 +140,13 @@ $d = $_POST ?: $company;
     <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . sanitize($e) . '</li>'; ?></ul></div>
 <?php endif; ?>
 
+<?php if ($subStatus['status'] !== 'expired'): ?>
+    <div class="alert alert-info small">
+        <i class="fas fa-info-circle me-2"></i>
+        Company pause is typically used after subscription expiry. Current subscription status: <strong><?= sanitize($subStatus['status']) ?></strong>.
+    </div>
+<?php endif; ?>
+
 <div class="card table-card">
     <div class="card-body p-4">
         <form method="POST" enctype="multipart/form-data" novalidate>
@@ -178,6 +193,29 @@ $d = $_POST ?: $company;
                     <?php else: ?>
                         <img id="logoPreview" src="" class="mt-2 logo-thumb d-none" alt="Preview">
                     <?php endif; ?>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">GST Number</label>
+                    <input type="text" name="gst_number" class="form-control" value="<?= sanitize($d['gst_number'] ?? '') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">GST Percentage (%)</label>
+                    <input type="number" name="gst_percentage" class="form-control" min="0" max="100" step="0.01" value="<?= sanitize($d['gst_percentage'] ?? '0') ?>">
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Tagline</label>
+                    <input type="text" name="tagline" class="form-control" value="<?= sanitize($d['tagline'] ?? '') ?>">
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" name="usage_paused" id="usage_paused" <?= ($d['usage_paused'] ?? 0) ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="usage_paused">Pause Company Usage (Owner/Manager)</label>
+                    </div>
+                    <div class="form-text">When enabled, company users will see a renewal message page and cannot use the panel.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Pause Message</label>
+                    <textarea name="pause_message" class="form-control" rows="2" placeholder="Custom renewal/contact message"><?= sanitize($d['pause_message'] ?? '') ?></textarea>
                 </div>
                 <div class="col-md-4 d-flex align-items-center">
                     <div class="form-check form-switch mt-2">

@@ -41,6 +41,9 @@ $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
         <a href="../manager/sales.php" class="<?= $activePage === 'sales' ? 'active' : '' ?>">
             <i class="fas fa-receipt"></i> Sales
         </a>
+        <a href="../manager/patients.php" class="<?= $activePage === 'patients' ? 'active' : '' ?>">
+            <i class="fas fa-user-injured"></i> Patients
+        </a>
         <a href="../manager/sale-add.php" class="<?= $activePage === 'sale-add' ? 'active' : '' ?>">
             <i class="fas fa-plus-circle"></i> New Sale
         </a>

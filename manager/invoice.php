@@ -13,8 +13,10 @@ if (!$id) { header('Location: sales.php'); exit; }
 $stmt = $conn->prepare("
     SELECT s.*, u.full_name AS manager_name
               , d.name AS doctor_name
+              , p.name AS patient_name
     FROM sales s LEFT JOIN users u ON u.id = s.manager_id
      LEFT JOIN doctors d ON d.id = s.doctor_id
+     LEFT JOIN patients p ON p.id = s.patient_id
     WHERE s.id = ? AND s.company_id = ?
 ");
 $stmt->bind_param('ii', $id, $cid);
@@ -47,6 +49,8 @@ $footer  = getFooterContent($conn);
         .invoice-half { height: 148.5mm; padding: 8mm 12mm 6mm; box-sizing: border-box; overflow: hidden; }
         .invoice-company { font-size: .85rem; }
         .invoice-company h5 { font-size: 1rem; margin-bottom: 2px; }
+        .invoice-company-head { display: flex; align-items: center; gap: 8px; }
+        .invoice-logo { width: 28px; height: 28px; object-fit: contain; border-radius: 4px; border: 1px solid #e2e2e2; padding: 2px; }
         .inv-table { width: 100%; border-collapse: collapse; font-size: .75rem; margin-top: 4px; }
         .inv-table th, .inv-table td { border: 1px solid #ddd; padding: 3px 5px; }
         .inv-table th { background: #f4f6f9; font-weight: 600; }
@@ -98,7 +102,15 @@ $footer  = getFooterContent($conn);
     <div class="invoice-half">
         <div class="d-flex justify-content-between align-items-start">
             <div class="invoice-company">
-                <h5><?= htmlspecialchars($company['name'] ?? 'Pharma Care', ENT_QUOTES, 'UTF-8') ?></h5>
+                <div class="invoice-company-head">
+                    <?php if (!empty($company['logo'])): ?>
+                        <img src="<?= htmlspecialchars(getLogoUrl($company['logo']), ENT_QUOTES, 'UTF-8') ?>" alt="Logo" class="invoice-logo">
+                    <?php endif; ?>
+                    <h5><?= htmlspecialchars($company['name'] ?? 'Pharma Care', ENT_QUOTES, 'UTF-8') ?></h5>
+                </div>
+                <?php if (!empty($company['tagline'])): ?>
+                    <div><em><?= htmlspecialchars($company['tagline'], ENT_QUOTES, 'UTF-8') ?></em></div>
+                <?php endif; ?>
                 <?php if ($company['address']): ?>
                     <div><?= htmlspecialchars($company['address'], ENT_QUOTES, 'UTF-8') ?></div>
                 <?php endif; ?>
@@ -107,6 +119,13 @@ $footer  = getFooterContent($conn);
                 <?php endif; ?>
                 <?php if ($company['email']): ?>
                     <div><?= htmlspecialchars($company['email'], ENT_QUOTES, 'UTF-8') ?></div>
+                <?php endif; ?>
+                <?php if (!empty($company['gst_number'])): ?>
+                    <div>GSTIN: <?= htmlspecialchars($company['gst_number'], ENT_QUOTES, 'UTF-8') ?>
+                    <?php if ((float)($company['gst_percentage'] ?? 0) > 0): ?>
+                        (<?= number_format((float)$company['gst_percentage'], 2) ?>%)
+                    <?php endif; ?>
+                    </div>
                 <?php endif; ?>
             </div>
             <div class="text-end">
@@ -120,12 +139,15 @@ $footer  = getFooterContent($conn);
 
         <div style="font-size:.75rem; margin-top:5px; padding:3px 6px; background:#f8f9fb; border-radius:4px">
             <strong>Customer:</strong> <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in', ENT_QUOTES, 'UTF-8') ?>
+            <?php if (!empty($sale['patient_name'])): ?>
+                &nbsp;|&nbsp; <strong>Patient:</strong> <?= htmlspecialchars($sale['patient_name'], ENT_QUOTES, 'UTF-8') ?>
+            <?php endif; ?>
             <?php if ($sale['customer_phone']): ?>
                 &nbsp;|&nbsp; <strong>Phone:</strong> <?= htmlspecialchars($sale['customer_phone'], ENT_QUOTES, 'UTF-8') ?>
             <?php endif; ?>
-                <?php if (!empty($sale['doctor_name'])): ?>
-                    &nbsp;|&nbsp; <strong>Doctor:</strong> <?= htmlspecialchars($sale['doctor_name'], ENT_QUOTES, 'UTF-8') ?>
-                <?php endif; ?>
+            <?php if (!empty($sale['doctor_name'])): ?>
+                &nbsp;|&nbsp; <strong>Doctor:</strong> <?= htmlspecialchars($sale['doctor_name'], ENT_QUOTES, 'UTF-8') ?>
+            <?php endif; ?>
             &nbsp;|&nbsp; <strong>Payment:</strong> <?= ucfirst($sale['payment_method']) ?>
         </div>
 
@@ -145,8 +167,8 @@ $footer  = getFooterContent($conn);
                     <td><?= $i + 1 ?></td>
                     <td><?= htmlspecialchars($item['product_name'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                     <td style="text-align:right"><?= $item['quantity'] ?></td>
-                        <td style="text-align:right"><?= formatCurrency($item['unit_price']) ?></td>
-                        <td style="text-align:right"><?= formatCurrency($item['subtotal']) ?></td>
+                    <td style="text-align:right"><?= formatCurrency($item['unit_price']) ?></td>
+                    <td style="text-align:right"><?= formatCurrency($item['subtotal']) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -154,13 +176,13 @@ $footer  = getFooterContent($conn);
 
         <div class="inv-totals">
             <table>
-                    <tr><td class="text-muted">Subtotal:</td><td class="text-end"><?= formatCurrency($sale['total_amount']) ?></td></tr>
+                <tr><td class="text-muted">Subtotal:</td><td class="text-end"><?= formatCurrency($sale['total_amount']) ?></td></tr>
                 <?php if ($sale['discount'] > 0): ?>
                     <tr><td class="text-muted">Discount:</td><td class="text-end text-danger">- <?= formatCurrency($sale['discount']) ?></td></tr>
                 <?php endif; ?>
                 <tr style="border-top:2px solid #333">
                     <td><strong>TOTAL:</strong></td>
-                        <td class="text-end"><strong><?= formatCurrency($sale['final_amount']) ?></strong></td>
+                    <td class="text-end"><strong><?= formatCurrency($sale['final_amount']) ?></strong></td>
                 </tr>
             </table>
         </div>

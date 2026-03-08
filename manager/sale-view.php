@@ -17,9 +17,11 @@ $footer     = getFooterContent($conn);
 $stmt = $conn->prepare("
     SELECT s.*, u.full_name AS manager_name, u.username AS manager_username
               , d.name AS doctor_name
+                 , p.name AS patient_name
     FROM sales s
     LEFT JOIN users u ON u.id = s.manager_id
      LEFT JOIN doctors d ON d.id = s.doctor_id
+     LEFT JOIN patients p ON p.id = s.patient_id
     WHERE s.id = ? AND s.company_id = ?
 ");
 $stmt->bind_param('ii', $id, $cid);
@@ -68,6 +70,7 @@ $iStmt->close();
                     <tr><td class="text-muted">Invoice #</td><td><code><?= sanitize($sale['invoice_number']) ?></code></td></tr>
                     <tr><td class="text-muted">Date</td><td><?= formatDateTime($sale['created_at']) ?></td></tr>
                     <tr><td class="text-muted">Customer</td><td><?= sanitize($sale['customer_name'] ?? 'Walk-in') ?></td></tr>
+                       <tr><td class="text-muted">Patient</td><td><?= sanitize($sale['patient_name'] ?? '—') ?></td></tr>
                     <tr><td class="text-muted">Phone</td><td><?= sanitize($sale['customer_phone'] ?? '—') ?></td></tr>
                     <tr><td class="text-muted">Manager</td><td><?= sanitize($sale['manager_name'] ?? '—') ?></td></tr>
                         <tr><td class="text-muted">Doctor</td><td><?= sanitize($sale['doctor_name'] ?? '—') ?></td></tr>

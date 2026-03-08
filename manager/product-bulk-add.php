@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Invalid CSRF token.';
     } else {
         $names       = $_POST['name'] ?? [];
+        $manufacturers = $_POST['manufacturer'] ?? [];
+        $batchNumbers  = $_POST['batch_number'] ?? [];
         $catIds      = $_POST['category_id'] ?? [];
         $unitIds     = $_POST['unit_id'] ?? [];
         $purchase    = $_POST['purchase_price'] ?? [];
@@ -41,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rows = [];
         foreach ($names as $i => $rowName) {
             $name = trim((string)$rowName);
+            $manufacturer = trim((string)($manufacturers[$i] ?? ''));
+            $batchNumber  = trim((string)($batchNumbers[$i] ?? ''));
             $catId = (int)($catIds[$i] ?? 0) ?: null;
             $unitId = (int)($unitIds[$i] ?? 0) ?: null;
             $purchasePrice = (float)($purchase[$i] ?? 0);
@@ -64,6 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $rows[] = [
                 'name' => $name,
+                'manufacturer' => $manufacturer,
+                'batch_number' => $batchNumber,
                 'category_id' => $catId,
                 'unit_id' => $unitId,
                 'purchase_price' => $purchasePrice,
@@ -82,12 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             $conn->begin_transaction();
             try {
-                $stmt = $conn->prepare('INSERT INTO products (company_id, name, category_id, unit_id, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description) VALUES (?,?,?,?,?,?,?,?,?,?)');
+                $stmt = $conn->prepare('INSERT INTO products (company_id, name, manufacturer, batch_number, category_id, unit_id, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
                 foreach ($rows as $r) {
                     $stmt->bind_param(
-                        'isiiddddss',
+                        'isssiiddddss',
                         $cid,
                         $r['name'],
+                        $r['manufacturer'],
+                        $r['batch_number'],
                         $r['category_id'],
                         $r['unit_id'],
                         $r['purchase_price'],
@@ -147,6 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <thead class="table-light">
                         <tr>
                             <th style="min-width:170px;">Name</th>
+                            <th style="min-width:150px;">Manufacturer</th>
+                            <th style="min-width:130px;">Batch No.</th>
                             <th style="min-width:150px;">Category</th>
                             <th style="min-width:150px;">Unit</th>
                             <th style="width:110px;">Purchase (INR)</th>
@@ -161,6 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <tbody id="bulkProductBody">
                         <tr data-index="0">
                             <td><input type="text" name="name[0]" class="form-control form-control-sm" placeholder="Product name"></td>
+                            <td><input type="text" name="manufacturer[0]" class="form-control form-control-sm" placeholder="Optional"></td>
+                            <td><input type="text" name="batch_number[0]" class="form-control form-control-sm" placeholder="Optional"></td>
                             <td>
                                 <select name="category_id[0]" class="form-select form-select-sm">
                                     <option value="">-</option>
@@ -199,6 +211,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <template id="bulkRowTemplate">
     <tr>
         <td><input type="text" data-name="name" class="form-control form-control-sm" placeholder="Product name"></td>
+        <td><input type="text" data-name="manufacturer" class="form-control form-control-sm" placeholder="Optional"></td>
+        <td><input type="text" data-name="batch_number" class="form-control form-control-sm" placeholder="Optional"></td>
         <td>
             <select data-name="category_id" class="form-select form-select-sm">
                 <option value="">-</option>

@@ -36,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Invalid CSRF token.';
     } else {
         $name      = trim($_POST['name'] ?? '');
+        $manufacturer = trim($_POST['manufacturer'] ?? '');
+        $batchNumber  = trim($_POST['batch_number'] ?? '');
         $cat_id    = (int)($_POST['category_id'] ?? 0) ?: null;
         $unit_id   = (int)($_POST['unit_id'] ?? 0) ?: null;
         $pur_price = (float)($_POST['purchase_price'] ?? 0);
@@ -50,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             $expiryDate = $expiry !== '' ? $expiry : null;
-            $stmt = $conn->prepare("UPDATE products SET name=?, category_id=?, unit_id=?, purchase_price=?, selling_price=?, stock_quantity=?, low_stock_threshold=?, expiry_date=?, description=?, updated_at=NOW() WHERE id=? AND company_id=?");
-            $stmt->bind_param('siiddddssii', $name, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $lowStock, $expiryDate, $desc, $id, $cid);
+            $stmt = $conn->prepare("UPDATE products SET name=?, manufacturer=?, batch_number=?, category_id=?, unit_id=?, purchase_price=?, selling_price=?, stock_quantity=?, low_stock_threshold=?, expiry_date=?, description=?, updated_at=NOW() WHERE id=? AND company_id=?");
+            $stmt->bind_param('sssiiddddssii', $name, $manufacturer, $batchNumber, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $lowStock, $expiryDate, $desc, $id, $cid);
             $stmt->execute();
             $stmt->close();
             setFlash('success', 'Product updated.');
@@ -89,6 +91,14 @@ $d = $_POST ?: $product;
                 <div class="col-12">
                     <label class="form-label fw-semibold">Product Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control" value="<?= sanitize($d['name'] ?? '') ?>" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Manufacturer</label>
+                    <input type="text" name="manufacturer" class="form-control" value="<?= sanitize($d['manufacturer'] ?? '') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Batch Number</label>
+                    <input type="text" name="batch_number" class="form-control" value="<?= sanitize($d['batch_number'] ?? '') ?>">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Category</label>

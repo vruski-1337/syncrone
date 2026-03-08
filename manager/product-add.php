@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Invalid CSRF token.';
     } else {
         $name     = trim($_POST['name'] ?? '');
+        $manufacturer = trim($_POST['manufacturer'] ?? '');
+        $batchNumber  = trim($_POST['batch_number'] ?? '');
         $cat_id   = (int)($_POST['category_id'] ?? 0) ?: null;
         $unit_id  = (int)($_POST['unit_id'] ?? 0) ?: null;
         $pur_price = (float)($_POST['purchase_price'] ?? 0);
@@ -40,8 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             $expiryDate = $expiry !== '' ? $expiry : null;
-            $stmt = $conn->prepare("INSERT INTO products (company_id, name, category_id, unit_id, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description) VALUES (?,?,?,?,?,?,?,?,?,?)");
-            $stmt->bind_param('isiiddddss', $cid, $name, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $lowStock, $expiryDate, $desc);
+            $stmt = $conn->prepare("INSERT INTO products (company_id, name, manufacturer, batch_number, category_id, unit_id, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+            $stmt->bind_param('isssiiddddss', $cid, $name, $manufacturer, $batchNumber, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $lowStock, $expiryDate, $desc);
             $stmt->execute();
             $stmt->close();
             setFlash('success', "Product '{$name}' added successfully.");
@@ -80,6 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="col-12">
                     <label class="form-label fw-semibold">Product Name <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control" value="<?= sanitize($_POST['name'] ?? '') ?>" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Manufacturer</label>
+                    <input type="text" name="manufacturer" class="form-control" value="<?= sanitize($_POST['manufacturer'] ?? '') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Batch Number</label>
+                    <input type="text" name="batch_number" class="form-control" value="<?= sanitize($_POST['batch_number'] ?? '') ?>">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Category</label>

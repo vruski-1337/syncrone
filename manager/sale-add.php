@@ -25,6 +25,12 @@ $dStmt->execute();
 $doctors = $dStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $dStmt->close();
 
+$ptStmt = $conn->prepare("SELECT id, name, phone FROM patients WHERE company_id = ? AND is_active = 1 ORDER BY name");
+$ptStmt->bind_param('i', $cid);
+$ptStmt->execute();
+$patients = $ptStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$ptStmt->close();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid CSRF token.';
@@ -32,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $customerName  = trim($_POST['customer_name'] ?? '');
         $customerPhone = trim($_POST['customer_phone'] ?? '');
         $doctorId      = (int)($_POST['doctor_id'] ?? 0) ?: null;
+        $patientId     = (int)($_POST['patient_id'] ?? 0) ?: null;
         $paymentMethod = $_POST['payment_method'] ?? 'cash';
         $notes         = trim($_POST['notes'] ?? '');
         $discount      = (float)($_POST['discount'] ?? 0);
@@ -52,6 +59,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $doctorId = null;
             }
             $docCheck->close();
+        }
+
+        if ($patientId) {
+            $ptCheck = $conn->prepare("SELECT id, name, phone FROM patients WHERE id = ? AND company_id = ? AND is_active = 1");
+            $ptCheck->bind_param('ii', $patientId, $cid);
+            $ptCheck->execute();
+            $ptData = $ptCheck->get_result()->fetch_assoc();
+            $ptCheck->close();
+
+            if (!$ptData) {
+                $errors[] = 'Selected patient is invalid.';
+                $patientId = null;
+            } else {
+                if ($customerName === '') $customerName = (string)($ptData['name'] ?? '');
+                if ($customerPhone === '') $customerPhone = (string)($ptData['phone'] ?? '');
+            }
         }
 
         // Validate items
@@ -104,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->begin_transaction();
             try {
                 // Insert sale
-                $stmt = $conn->prepare("INSERT INTO sales (company_id, manager_id, doctor_id, invoice_number, customer_name, customer_phone, total_amount, discount, final_amount, payment_method, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-                $stmt->bind_param('iiisssdddss', $cid, $uid, $doctorId, $invoiceNumber, $customerName, $customerPhone, $totalAmount, $discount, $finalAmount, $paymentMethod, $notes);
+                $stmt = $conn->prepare("INSERT INTO sales (company_id, manager_id, doctor_id, patient_id, invoice_number, customer_name, customer_phone, total_amount, discount, final_amount, payment_method, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt->bind_param('iiiisssdddss', $cid, $uid, $doctorId, $patientId, $invoiceNumber, $customerName, $customerPhone, $totalAmount, $discount, $finalAmount, $paymentMethod, $notes);
                 $stmt->execute();
                 $saleId = $conn->insert_id;
                 $stmt->close();
@@ -177,6 +200,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Customer Phone</label>
                         <input type="text" name="customer_phone" class="form-control" value="<?= sanitize($_POST['customer_phone'] ?? '') ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Patient</label>
+                        <select name="patient_id" class="form-select">
+                            <option value="">- Walk-in / Not Linked -</option>
+                            <?php foreach ($patients as $pt): ?>
+                                <option value="<?= $pt['id'] ?>" <?= ((string)$pt['id'] === ($_POST['patient_id'] ?? '')) ? 'selected' : '' ?>>
+                                    <?= sanitize($pt['name']) ?><?= !empty($pt['phone']) ? ' (' . sanitize($pt['phone']) . ')' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Referred Doctor</label>

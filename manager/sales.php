@@ -17,9 +17,11 @@ $dateTo   = $_GET['date_to']   ?? date('Y-m-d');
 $stmt = $conn->prepare("
     SELECT s.*, u.full_name AS manager_name
            , d.name AS doctor_name
+           , p.name AS patient_name
     FROM sales s
     LEFT JOIN users u ON u.id = s.manager_id
     LEFT JOIN doctors d ON d.id = s.doctor_id
+        LEFT JOIN patients p ON p.id = s.patient_id
     WHERE s.company_id = ? AND DATE(s.created_at) BETWEEN ? AND ?
     ORDER BY s.created_at DESC
 ");
@@ -67,16 +69,17 @@ $stmt->close();
     <div class="table-responsive">
         <table class="table table-hover table-striped mb-0">
             <thead>
-                <tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Doctor</th><th>Manager</th><th>Payment</th><th>Total</th><th>Discount</th><th>Final</th><th>Actions</th></tr>
+                <tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Patient</th><th>Doctor</th><th>Manager</th><th>Payment</th><th>Total</th><th>Discount</th><th>Final</th><th>Actions</th></tr>
             </thead>
             <tbody>
             <?php if (empty($sales)): ?>
-                <tr><td colspan="10" class="text-center py-4 text-muted">No sales found for this period.</td></tr>
+                <tr><td colspan="11" class="text-center py-4 text-muted">No sales found for this period.</td></tr>
             <?php else: foreach ($sales as $s): ?>
                 <tr>
                     <td><code class="small"><?= sanitize($s['invoice_number']) ?></code></td>
                     <td class="small"><?= formatDateTime($s['created_at']) ?></td>
                     <td><?= sanitize($s['customer_name'] ?? 'Walk-in') ?></td>
+                          <td><?= sanitize($s['patient_name'] ?? '—') ?></td>
                     <td><?= sanitize($s['doctor_name'] ?? '—') ?></td>
                     <td><?= sanitize($s['manager_name'] ?? '—') ?></td>
                     <td><span class="badge bg-secondary small"><?= ucfirst($s['payment_method']) ?></span></td>
@@ -93,7 +96,7 @@ $stmt->close();
             <?php if (!empty($sales)): ?>
             <tfoot class="table-light">
                 <tr>
-                    <td colspan="6"><strong>Total</strong></td>
+                    <td colspan="7"><strong>Total</strong></td>
                     <td><strong><?= formatCurrency(array_sum(array_column($sales, 'total_amount'))) ?></strong></td>
                     <td><strong><?= formatCurrency(array_sum(array_column($sales, 'discount'))) ?></strong></td>
                     <td><strong><?= formatCurrency(array_sum(array_column($sales, 'final_amount'))) ?></strong></td>

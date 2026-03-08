@@ -8,6 +8,30 @@ function requireLogin() {
         header('Location: ' . getLoginUrl());
         exit;
     }
+
+    $role = $_SESSION['role'] ?? '';
+    $companyId = (int)($_SESSION['company_id'] ?? 0);
+    $scriptName = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
+    if (in_array($role, ['owner', 'manager'], true)
+        && $companyId > 0
+        && $scriptName !== 'paused.php'
+        && $scriptName !== 'logout.php') {
+        $conn = $GLOBALS['conn'] ?? null;
+        if ($conn) {
+            $stmt = $conn->prepare("SELECT usage_paused, pause_message FROM companies WHERE id = ? LIMIT 1");
+            $stmt->bind_param('i', $companyId);
+            $stmt->execute();
+            $companyState = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if ($companyState && (int)($companyState['usage_paused'] ?? 0) === 1) {
+                $_SESSION['company_pause_message'] = trim((string)($companyState['pause_message'] ?? ''));
+                header('Location: ' . getPausedUrl());
+                exit;
+            }
+        }
+    }
 }
 
 function requireRole($role) {
@@ -34,6 +58,13 @@ function getLoginUrl() {
     $depth = substr_count(str_replace(realpath(__DIR__ . '/..'), '', $script), DIRECTORY_SEPARATOR);
     $prefix = str_repeat('../', max(0, $depth - 1));
     return $prefix . 'index.php';
+}
+
+function getPausedUrl() {
+    $script = $_SERVER['SCRIPT_FILENAME'] ?? '';
+    $depth = substr_count(str_replace(realpath(__DIR__ . '/..'), '', $script), DIRECTORY_SEPARATOR);
+    $prefix = str_repeat('../', max(0, $depth - 1));
+    return $prefix . 'paused.php';
 }
 
 function getDefaultRedirect() {

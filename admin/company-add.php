@@ -24,6 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone       = trim($_POST['phone'] ?? '');
         $address     = trim($_POST['address'] ?? '');
         $marquee     = trim($_POST['marquee_message'] ?? '');
+        $gstNumber   = trim($_POST['gst_number'] ?? '');
+        $gstPercent  = (float)($_POST['gst_percentage'] ?? 0);
+        $tagline     = trim($_POST['tagline'] ?? '');
         $is_active   = isset($_POST['is_active']) ? 1 : 0;
         $sub_id      = (int)($_POST['subscription_id'] ?? 0);
         $ownUsr      = trim($_POST['owner_username'] ?? '');
@@ -35,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$ownUsr)  $errors[] = 'Owner username is required.';
         if (!$ownPwd)  $errors[] = 'Owner password is required.';
         if (strlen($ownPwd) < 6) $errors[] = 'Password must be at least 6 characters.';
+        if ($gstPercent < 0 || $gstPercent > 100) $errors[] = 'GST percentage must be between 0 and 100.';
 
         // Check username unique
         $chk = $conn->prepare("SELECT id FROM users WHERE username = ?");
@@ -67,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Create company
                 $subIdParam = $sub_id ?: null;
-                $stmt = $conn->prepare("INSERT INTO companies (name, email, phone, address, logo, owner_id, subscription_id, marquee_message, is_active) VALUES (?,?,?,?,?,?,?,?,?)");
-                $stmt->bind_param('sssssiisi', $name, $email, $phone, $address, $logoFilename, $ownerId, $subIdParam, $marquee, $is_active);
+                $stmt = $conn->prepare("INSERT INTO companies (name, email, phone, address, logo, owner_id, subscription_id, marquee_message, gst_number, gst_percentage, tagline, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt->bind_param('sssssiissdsi', $name, $email, $phone, $address, $logoFilename, $ownerId, $subIdParam, $marquee, $gstNumber, $gstPercent, $tagline, $is_active);
                 $stmt->execute();
                 $companyId = $conn->insert_id;
                 $stmt->close();
@@ -172,6 +176,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="form-label fw-semibold">Company Logo</label>
                     <input type="file" name="logo" id="logo" class="form-control" accept="image/*">
                     <img id="logoPreview" src="" class="mt-2 logo-thumb d-none" alt="Preview">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">GST Number</label>
+                    <input type="text" name="gst_number" class="form-control" value="<?= sanitize($_POST['gst_number'] ?? '') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">GST Percentage (%)</label>
+                    <input type="number" name="gst_percentage" class="form-control" min="0" max="100" step="0.01" value="<?= sanitize($_POST['gst_percentage'] ?? '0') ?>">
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Tagline</label>
+                    <input type="text" name="tagline" class="form-control" placeholder="Printed on invoice (optional)" value="<?= sanitize($_POST['tagline'] ?? '') ?>">
                 </div>
                 <div class="col-md-4 d-flex align-items-center">
                     <div class="form-check form-switch mt-2">

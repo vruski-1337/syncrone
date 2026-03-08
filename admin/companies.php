@@ -120,6 +120,7 @@ $stmt->close();
                         elseif ($days <= 7)    echo '<span class="badge bg-warning text-dark">Expiring</span>';
                         else                   echo '<span class="badge bg-success">Active</span>';
                         if (!$c['is_active'])  echo ' <span class="badge bg-dark">Inactive</span>';
+                        if (!empty($c['usage_paused'])) echo ' <span class="badge bg-danger">Usage Paused</span>';
                         ?>
                     </td>
                     <td class="action-btns text-center">
