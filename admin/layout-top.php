@@ -36,6 +36,9 @@ $logoUrl     = isset($company) && !empty($company['logo']) ? getLogoUrl($company
         <a href="footer-settings.php" class="<?= $activePage === 'footer' ? 'active' : '' ?>">
             <i class="fas fa-paragraph"></i> Footer Settings
         </a>
+        <a href="profile.php" class="<?= $activePage === 'profile' ? 'active' : '' ?>">
+            <i class="fas fa-user-cog"></i> My Credentials
+        </a>
         <a href="../logout.php">
             <i class="fas fa-sign-out-alt"></i> Logout
         </a>

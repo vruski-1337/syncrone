@@ -3,6 +3,9 @@
 $currentUser = getCurrentUser($conn);
 $footer      = getFooterContent($conn);
 $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
+$currentRole = $_SESSION['role'] ?? 'manager';
+$roleLabel   = $currentRole === 'owner' ? 'Owner' : 'Manager';
+$roleBadge   = $currentRole === 'owner' ? 'bg-success' : 'bg-info text-dark';
 ?>
 <div class="sidebar" id="sidebar">
     <a href="dashboard.php" class="sidebar-brand">
@@ -26,11 +29,17 @@ $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
         <a href="products.php" class="<?= $activePage === 'products' ? 'active' : '' ?>">
             <i class="fas fa-pills"></i> Products
         </a>
+        <a href="product-bulk-add.php" class="<?= $activePage === 'product-bulk-add' ? 'active' : '' ?>">
+            <i class="fas fa-table"></i> Bulk Add Products
+        </a>
         <a href="categories.php" class="<?= $activePage === 'categories' ? 'active' : '' ?>">
             <i class="fas fa-tags"></i> Categories
         </a>
         <a href="units.php" class="<?= $activePage === 'units' ? 'active' : '' ?>">
             <i class="fas fa-ruler"></i> Units
+        </a>
+        <a href="doctors.php" class="<?= $activePage === 'doctors' ? 'active' : '' ?>">
+            <i class="fas fa-user-md"></i> Doctors
         </a>
     </nav>
 
@@ -67,7 +76,7 @@ $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
             <h6 class="page-title"><?= sanitize($pageTitle) ?></h6>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-info text-dark">Manager</span>
+            <span class="badge <?= $roleBadge ?>"><?= $roleLabel ?></span>
             <div class="avatar-circle"><?= strtoupper(substr($currentUser['full_name'] ?? $currentUser['username'], 0, 1)) ?></div>
             <span class="fw-semibold small d-none d-sm-inline"><?= sanitize($currentUser['full_name'] ?? $currentUser['username']) ?></span>
             <a href="../logout.php" class="btn btn-sm btn-outline-danger ms-2"><i class="fas fa-sign-out-alt"></i></a>

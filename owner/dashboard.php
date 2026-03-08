@@ -24,11 +24,16 @@ $totalProducts = $totalProducts->get_result()->fetch_row()[0];
 $todaySales = $conn->prepare("SELECT COUNT(*), COALESCE(SUM(final_amount),0) FROM sales WHERE company_id=? AND DATE(created_at)=CURDATE()");
 $todaySales->bind_param('i', $cid); $todaySales->execute();
 [$salesToday, $revenueToday] = $todaySales->get_result()->fetch_row();
+$inventoryAlerts = getInventoryAlerts($conn, $cid, 30);
+$lowStockItems   = $inventoryAlerts['low_stock'];
+$expiringItems   = $inventoryAlerts['expiring'];
 
 // Recent sales
 $stmt = $conn->prepare("
     SELECT s.*, u.full_name AS manager_name
+           , d.name AS doctor_name
     FROM sales s LEFT JOIN users u ON u.id = s.manager_id
+    LEFT JOIN doctors d ON d.id = s.doctor_id
     WHERE s.company_id = ?
     ORDER BY s.created_at DESC LIMIT 10
 ");
@@ -89,6 +94,52 @@ $footer = getFooterContent($conn);
     </div>
 </div>
 
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card table-card h-100">
+            <div class="card-header"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Low Stock Alerts</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Product</th><th>Stock</th><th>Threshold</th></tr></thead>
+                    <tbody>
+                    <?php if (empty($lowStockItems)): ?>
+                        <tr><td colspan="3" class="text-center text-muted py-3">No low-stock items.</td></tr>
+                    <?php else: foreach ($lowStockItems as $item): ?>
+                        <tr>
+                            <td><?= sanitize($item['name']) ?></td>
+                            <td><span class="badge bg-warning text-dark"><?= $item['stock_quantity'] ?></span></td>
+                            <td><?= $item['low_stock_threshold'] ?></td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card table-card h-100">
+            <div class="card-header"><i class="fas fa-calendar-times me-2 text-danger"></i>Expiry Alerts (30 Days)</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Product</th><th>Expiry Date</th><th>Status</th></tr></thead>
+                    <tbody>
+                    <?php if (empty($expiringItems)): ?>
+                        <tr><td colspan="3" class="text-center text-muted py-3">No products near expiry.</td></tr>
+                    <?php else: foreach ($expiringItems as $item): ?>
+                        <?php $daysLeft = (int)floor((strtotime($item['expiry_date']) - time()) / 86400); ?>
+                        <tr>
+                            <td><?= sanitize($item['name']) ?></td>
+                            <td><?= formatDate($item['expiry_date']) ?></td>
+                            <td><?= $daysLeft < 0 ? '<span class="badge bg-danger">Expired</span>' : '<span class="badge bg-warning text-dark">' . $daysLeft . ' day(s)</span>' ?></td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card table-card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="fas fa-receipt me-2"></i>Recent Sales</span>
@@ -97,16 +148,17 @@ $footer = getFooterContent($conn);
     <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead>
-                <tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Manager</th><th>Total</th><th>Discount</th><th>Final</th><th>Payment</th></tr>
+                <tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Doctor</th><th>Manager</th><th>Total</th><th>Discount</th><th>Final</th><th>Payment</th></tr>
             </thead>
             <tbody>
             <?php if (empty($recentSales)): ?>
-                <tr><td colspan="8" class="text-center text-muted py-4">No sales recorded yet.</td></tr>
+                <tr><td colspan="9" class="text-center text-muted py-4">No sales recorded yet.</td></tr>
             <?php else: foreach ($recentSales as $s): ?>
                 <tr>
                     <td><code><?= sanitize($s['invoice_number']) ?></code></td>
                     <td class="small"><?= formatDateTime($s['created_at']) ?></td>
                     <td><?= sanitize($s['customer_name'] ?? 'Walk-in') ?></td>
+                    <td><?= sanitize($s['doctor_name'] ?? '—') ?></td>
                     <td><?= sanitize($s['manager_name'] ?? 'N/A') ?></td>
                     <td><?= formatCurrency($s['total_amount']) ?></td>
                     <td><?= formatCurrency($s['discount']) ?></td>

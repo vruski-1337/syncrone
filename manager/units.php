@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 $pageTitle = 'Units'; $activePage = 'units'; $cid = (int)$_SESSION['company_id'];
 $footer = getFooterContent($conn); $errors = [];
 

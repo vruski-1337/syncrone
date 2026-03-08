@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // ─── Product Row Functions ─────────────────────────────────────────────────
 
 let rowIndex = 1;
+const CURRENCY_SYMBOL = '₹';
 
 function addProductRow() {
     const tbody = document.getElementById('saleItemsBody');
@@ -114,7 +115,7 @@ function calcRowSubtotal(row) {
     const price = parseFloat(row.querySelector('.unit-price')?.value) || 0;
     const sub   = qty * price;
     const subEl = row.querySelector('.row-subtotal');
-    if (subEl) subEl.textContent = '$' + sub.toFixed(2);
+    if (subEl) subEl.textContent = CURRENCY_SYMBOL + sub.toFixed(2);
     const subInput = row.querySelector('.subtotal-input');
     if (subInput) subInput.value = sub.toFixed(2);
     updateTotals();
@@ -134,8 +135,8 @@ function updateTotals() {
     const hidTotal  = document.getElementById('hiddenTotal');
     const hidFinal  = document.getElementById('hiddenFinal');
 
-    if (elTotal)  elTotal.textContent  = '$' + total.toFixed(2);
-    if (elFinal)  elFinal.textContent  = '$' + final.toFixed(2);
+    if (elTotal)  elTotal.textContent  = CURRENCY_SYMBOL + total.toFixed(2);
+    if (elFinal)  elFinal.textContent  = CURRENCY_SYMBOL + final.toFixed(2);
     if (hidTotal) hidTotal.value       = total.toFixed(2);
     if (hidFinal) hidFinal.value       = final.toFixed(2);
 }

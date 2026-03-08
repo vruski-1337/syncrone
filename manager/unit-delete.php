@@ -1,6 +1,6 @@
 <?php
 session_start(); require_once '../config/database.php'; require_once '../includes/auth.php'; require_once '../includes/functions.php';
-requireLogin(); requireRole('manager');
+requireLogin(); requireAnyRole(['manager', 'owner']);
 $id = (int)($_GET['id'] ?? 0); $cid = (int)$_SESSION['company_id'];
 if ($id) {
     $stmt = $conn->prepare("DELETE FROM units WHERE id=? AND company_id=?");

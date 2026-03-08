@@ -8,13 +8,17 @@ requireAnyRole(['manager', 'owner']);
 
 $id  = (int)($_GET['id'] ?? 0);
 $cid = (int)$_SESSION['company_id'];
-if (!$id) { setFlash('danger', 'Invalid product.'); header('Location: products.php'); exit; }
+if (!$id) { setFlash('danger', 'Invalid doctor.'); header('Location: doctors.php'); exit; }
 
-$stmt = $conn->prepare("DELETE FROM products WHERE id=? AND company_id=?");
+$stmt = $conn->prepare('DELETE FROM doctors WHERE id = ? AND company_id = ?');
 $stmt->bind_param('ii', $id, $cid);
 $stmt->execute();
-if ($stmt->affected_rows > 0) setFlash('success', 'Product deleted.');
-else setFlash('danger', 'Product not found.');
+if ($stmt->affected_rows > 0) {
+    setFlash('success', 'Doctor deleted.');
+} else {
+    setFlash('danger', 'Doctor not found.');
+}
 $stmt->close();
-header('Location: products.php');
+
+header('Location: doctors.php');
 exit;

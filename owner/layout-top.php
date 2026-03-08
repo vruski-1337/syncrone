@@ -26,6 +26,27 @@ $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
         <a href="managers.php" class="<?= $activePage === 'managers' ? 'active' : '' ?>">
             <i class="fas fa-user-tie"></i> Store Managers
         </a>
+        <a href="../manager/products.php" class="<?= $activePage === 'products' ? 'active' : '' ?>">
+            <i class="fas fa-pills"></i> Products
+        </a>
+        <a href="../manager/product-bulk-add.php" class="<?= $activePage === 'product-bulk-add' ? 'active' : '' ?>">
+            <i class="fas fa-table"></i> Bulk Add Products
+        </a>
+        <a href="../manager/categories.php" class="<?= $activePage === 'categories' ? 'active' : '' ?>">
+            <i class="fas fa-tags"></i> Categories
+        </a>
+        <a href="../manager/units.php" class="<?= $activePage === 'units' ? 'active' : '' ?>">
+            <i class="fas fa-ruler"></i> Units
+        </a>
+        <a href="../manager/sales.php" class="<?= $activePage === 'sales' ? 'active' : '' ?>">
+            <i class="fas fa-receipt"></i> Sales
+        </a>
+        <a href="../manager/sale-add.php" class="<?= $activePage === 'sale-add' ? 'active' : '' ?>">
+            <i class="fas fa-plus-circle"></i> New Sale
+        </a>
+        <a href="../manager/doctors.php" class="<?= $activePage === 'doctors' ? 'active' : '' ?>">
+            <i class="fas fa-user-md"></i> Doctors
+        </a>
     </nav>
 
     <div class="sidebar-section">Reports</div>

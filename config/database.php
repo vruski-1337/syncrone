@@ -330,6 +330,8 @@ class TempSQLiteConnection {
                 purchase_price REAL NOT NULL DEFAULT 0,
                 selling_price REAL NOT NULL DEFAULT 0,
                 stock_quantity REAL NOT NULL DEFAULT 0,
+                low_stock_threshold REAL NOT NULL DEFAULT 10,
+                expiry_date TEXT,
                 description TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -337,10 +339,24 @@ class TempSQLiteConnection {
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
                 FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL
             )",
+            "CREATE TABLE IF NOT EXISTS doctors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                phone TEXT,
+                specialization TEXT,
+                commission_rate REAL NOT NULL DEFAULT 0,
+                notes TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )",
             "CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 company_id INTEGER NOT NULL,
                 manager_id INTEGER,
+                doctor_id INTEGER,
                 invoice_number TEXT NOT NULL UNIQUE,
                 customer_name TEXT,
                 customer_phone TEXT,
@@ -351,7 +367,8 @@ class TempSQLiteConnection {
                 notes TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-                FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL
+                FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,
+                FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
             )",
             "CREATE TABLE IF NOT EXISTS sale_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -385,6 +402,104 @@ class TempSQLiteConnection {
         $this->pdo->exec("INSERT OR IGNORE INTO alerts (id, title, message, type, is_active) VALUES
             (1, 'Welcome to Pharma Care PMS', 'Welcome to the Pharma Care Pharmacy Management System. Please configure your company settings to get started.', 'info', 1),
             (2, 'System Update', 'The system has been updated to the latest version. All features are working normally.', 'success', 1)");
+    }
+}
+
+function mysqlTableExists(mysqli $conn, string $table): bool {
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
+    $exists = (int) ($stmt->get_result()->fetch_row()[0] ?? 0) > 0;
+    $stmt->close();
+    return $exists;
+}
+
+function mysqlColumnExists(mysqli $conn, string $table, string $column): bool {
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('ss', $table, $column);
+    $stmt->execute();
+    $exists = (int) ($stmt->get_result()->fetch_row()[0] ?? 0) > 0;
+    $stmt->close();
+    return $exists;
+}
+
+function sqliteColumnExists(TempSQLiteConnection $conn, string $table, string $column): bool {
+    $result = $conn->query("PRAGMA table_info({$table})");
+    if (!$result || !($result instanceof TempSQLiteResult)) {
+        return false;
+    }
+    while ($row = $result->fetch_assoc()) {
+        if (($row['name'] ?? '') === $column) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function runSchemaMigrations($conn): void {
+    if (!defined('DB_DRIVER')) {
+        return;
+    }
+
+    if (DB_DRIVER === 'mysql' && $conn instanceof mysqli) {
+        if (!mysqlTableExists($conn, 'doctors')) {
+            $conn->query("CREATE TABLE IF NOT EXISTS doctors (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                company_id INT NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                phone VARCHAR(30),
+                specialization VARCHAR(150),
+                commission_rate DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                notes TEXT,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        }
+
+        if (!mysqlColumnExists($conn, 'products', 'low_stock_threshold')) {
+            $conn->query("ALTER TABLE products ADD COLUMN low_stock_threshold DECIMAL(10,2) NOT NULL DEFAULT 10.00 AFTER stock_quantity");
+        }
+        if (!mysqlColumnExists($conn, 'products', 'expiry_date')) {
+            $conn->query("ALTER TABLE products ADD COLUMN expiry_date DATE NULL AFTER low_stock_threshold");
+        }
+        if (!mysqlColumnExists($conn, 'sales', 'doctor_id')) {
+            $conn->query("ALTER TABLE sales ADD COLUMN doctor_id INT NULL AFTER manager_id");
+            $conn->query("ALTER TABLE sales ADD CONSTRAINT fk_sales_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL");
+        }
+    }
+
+    if (DB_DRIVER === 'sqlite-temp' && $conn instanceof TempSQLiteConnection) {
+        $conn->query("CREATE TABLE IF NOT EXISTS doctors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            phone TEXT,
+            specialization TEXT,
+            commission_rate REAL NOT NULL DEFAULT 0,
+            notes TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+        )");
+
+        if (!sqliteColumnExists($conn, 'products', 'low_stock_threshold')) {
+            $conn->query("ALTER TABLE products ADD COLUMN low_stock_threshold REAL NOT NULL DEFAULT 10");
+        }
+        if (!sqliteColumnExists($conn, 'products', 'expiry_date')) {
+            $conn->query("ALTER TABLE products ADD COLUMN expiry_date TEXT");
+        }
+        if (!sqliteColumnExists($conn, 'sales', 'doctor_id')) {
+            $conn->query("ALTER TABLE sales ADD COLUMN doctor_id INTEGER");
+        }
     }
 }
 
@@ -422,3 +537,5 @@ if (class_exists('mysqli') && !$forceSqlite) {
 
     define('DB_DRIVER', 'sqlite-temp');
 }
+
+runSchemaMigrations($conn);

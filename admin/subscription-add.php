@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="row g-3 mb-3">
                 <div class="col-6">
-                    <label class="form-label fw-semibold">Price ($) <span class="text-danger">*</span></label>
+                    <label class="form-label fw-semibold">Price (INR) <span class="text-danger">*</span></label>
                     <input type="number" name="price" class="form-control" step="0.01" min="0" value="<?= sanitize($_POST['price'] ?? '0.00') ?>" required>
                 </div>
                 <div class="col-6">

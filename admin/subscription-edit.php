@@ -76,7 +76,7 @@ $d = $_POST ?: $plan;
             </div>
             <div class="row g-3 mb-3">
                 <div class="col-6">
-                    <label class="form-label fw-semibold">Price ($)</label>
+                    <label class="form-label fw-semibold">Price (INR)</label>
                     <input type="number" name="price" class="form-control" step="0.01" min="0" value="<?= sanitize($d['price'] ?? '0.00') ?>">
                 </div>
                 <div class="col-6">

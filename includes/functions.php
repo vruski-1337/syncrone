@@ -5,7 +5,7 @@ function sanitize($input) {
 }
 
 function formatCurrency($amount) {
-    return '$' . number_format((float)$amount, 2);
+    return '₹' . number_format((float)$amount, 2);
 }
 
 function formatDate($date) {
@@ -103,7 +103,15 @@ function uploadLogo($file) {
 
     $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime];
     $filename = bin2hex(random_bytes(16)) . '.' . $ext;
-    $dest = UPLOAD_PATH . 'logos/' . $filename;
+    $logoDir = UPLOAD_PATH . 'logos/';
+    if (!is_dir($logoDir) && !mkdir($logoDir, 0775, true) && !is_dir($logoDir)) {
+        return ['success' => false, 'error' => 'Upload directory is not available.'];
+    }
+    if (!is_writable($logoDir)) {
+        return ['success' => false, 'error' => 'Upload directory is not writable.'];
+    }
+
+    $dest = $logoDir . $filename;
 
     if (!move_uploaded_file($file['tmp_name'], $dest)) {
         return ['success' => false, 'error' => 'Could not save file.'];
@@ -116,6 +124,28 @@ function deleteLogo($filename) {
     if ($filename && file_exists(UPLOAD_PATH . 'logos/' . $filename)) {
         unlink(UPLOAD_PATH . 'logos/' . $filename);
     }
+}
+
+function getInventoryAlerts($conn, $companyId, $expiryDays = 30) {
+    $lowStockItems = [];
+    $expiringItems = [];
+
+    $stmt = $conn->prepare("\n        SELECT id, name, stock_quantity, low_stock_threshold, expiry_date\n        FROM products\n        WHERE company_id = ?\n          AND stock_quantity <= COALESCE(low_stock_threshold, 10)\n        ORDER BY stock_quantity ASC, name ASC\n        LIMIT 10\n    ");
+    $stmt->bind_param('i', $companyId);
+    $stmt->execute();
+    $lowStockItems = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $stmt = $conn->prepare("\n        SELECT id, name, stock_quantity, expiry_date\n        FROM products\n        WHERE company_id = ?\n          AND expiry_date IS NOT NULL\n          AND expiry_date <> ''\n          AND DATEDIFF(expiry_date, CURDATE()) <= ?\n        ORDER BY expiry_date ASC, name ASC\n        LIMIT 10\n    ");
+    $stmt->bind_param('ii', $companyId, $expiryDays);
+    $stmt->execute();
+    $expiringItems = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return [
+        'low_stock' => $lowStockItems,
+        'expiring'  => $expiringItems,
+    ];
 }
 
 function getLogoUrl($filename, $baseDepth = 1) {

@@ -19,6 +19,16 @@ function requireRole($role) {
     }
 }
 
+function requireAnyRole(array $roles) {
+    requireLogin();
+    $currentRole = $_SESSION['role'] ?? '';
+    if (!in_array($currentRole, $roles, true)) {
+        $redirect = getDefaultRedirect();
+        header('Location: ' . $redirect);
+        exit;
+    }
+}
+
 function getLoginUrl() {
     $script = $_SERVER['SCRIPT_FILENAME'] ?? '';
     $depth = substr_count(str_replace(realpath(__DIR__ . '/..'), '', $script), DIRECTORY_SEPARATOR);

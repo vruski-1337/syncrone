@@ -4,11 +4,12 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 
 $pageTitle  = 'Manager Dashboard';
 $activePage = 'dashboard';
 $cid        = (int)$_SESSION['company_id'];
+$role       = $_SESSION['role'] ?? 'manager';
 
 // Stats
 $totalProducts  = $conn->prepare("SELECT COUNT(*) FROM products WHERE company_id=?");
@@ -20,16 +21,31 @@ $totalCategories->bind_param('i', $cid); $totalCategories->execute();
 $totalCategories = $totalCategories->get_result()->fetch_row()[0];
 
 $uid = (int)$_SESSION['user_id'];
-$todaySales = $conn->prepare("SELECT COUNT(*), COALESCE(SUM(final_amount),0) FROM sales WHERE manager_id=? AND DATE(created_at)=CURDATE()");
-$todaySales->bind_param('i', $uid); $todaySales->execute();
+if ($role === 'owner') {
+    $todaySales = $conn->prepare("SELECT COUNT(*), COALESCE(SUM(final_amount),0) FROM sales WHERE company_id=? AND DATE(created_at)=CURDATE()");
+    $todaySales->bind_param('i', $cid);
+} else {
+    $todaySales = $conn->prepare("SELECT COUNT(*), COALESCE(SUM(final_amount),0) FROM sales WHERE manager_id=? AND DATE(created_at)=CURDATE()");
+    $todaySales->bind_param('i', $uid);
+}
+$todaySales->execute();
 [$salesToday, $revenueToday] = $todaySales->get_result()->fetch_row();
 
-// Recent sales by this manager
-$stmt = $conn->prepare("SELECT * FROM sales WHERE manager_id=? ORDER BY created_at DESC LIMIT 10");
-$stmt->bind_param('i', $uid);
+// Recent sales by manager or entire company for owner view
+if ($role === 'owner') {
+    $stmt = $conn->prepare("SELECT * FROM sales WHERE company_id=? ORDER BY created_at DESC LIMIT 10");
+    $stmt->bind_param('i', $cid);
+} else {
+    $stmt = $conn->prepare("SELECT * FROM sales WHERE manager_id=? ORDER BY created_at DESC LIMIT 10");
+    $stmt->bind_param('i', $uid);
+}
 $stmt->execute();
 $recentSales = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+$inventoryAlerts = getInventoryAlerts($conn, $cid, 30);
+$lowStockItems   = $inventoryAlerts['low_stock'];
+$expiringItems   = $inventoryAlerts['expiring'];
 
 $footer = getFooterContent($conn);
 ?>
@@ -70,6 +86,58 @@ $footer = getFooterContent($conn);
             <div class="stat-info"><div class="stat-label">Revenue Today</div><div class="stat-value"><?= formatCurrency($revenueToday) ?></div></div>
             <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
         </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card table-card h-100">
+            <div class="card-header"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Low Stock Alerts</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Product</th><th>Stock</th><th>Threshold</th></tr></thead>
+                    <tbody>
+                    <?php if (empty($lowStockItems)): ?>
+                        <tr><td colspan="3" class="text-center text-muted py-3">No low-stock products.</td></tr>
+                    <?php else: foreach ($lowStockItems as $item): ?>
+                        <tr>
+                            <td><?= sanitize($item['name']) ?></td>
+                            <td><span class="badge bg-warning text-dark"><?= $item['stock_quantity'] ?></span></td>
+                            <td><?= $item['low_stock_threshold'] ?></td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card table-card h-100">
+            <div class="card-header"><i class="fas fa-calendar-times me-2 text-danger"></i>Expiry Alerts (30 Days)</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Product</th><th>Expiry Date</th><th>Status</th></tr></thead>
+                    <tbody>
+                    <?php if (empty($expiringItems)): ?>
+                        <tr><td colspan="3" class="text-center text-muted py-3">No products near expiry.</td></tr>
+                    <?php else: foreach ($expiringItems as $item): ?>
+                        <?php $daysLeft = (int)floor((strtotime($item['expiry_date']) - time()) / 86400); ?>
+                        <tr>
+                            <td><?= sanitize($item['name']) ?></td>
+                            <td><?= formatDate($item['expiry_date']) ?></td>
+                            <td>
+                                <?php if ($daysLeft < 0): ?>
+                                    <span class="badge bg-danger">Expired</span>
+                                <?php else: ?>
+                                    <span class="badge bg-warning text-dark"><?= $daysLeft ?> day(s)</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 

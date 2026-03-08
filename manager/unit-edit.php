@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 $id = (int)($_GET['id'] ?? 0); $cid = (int)$_SESSION['company_id'];
 if (!$id) { setFlash('danger','Invalid.'); header('Location: units.php'); exit; }
 $pageTitle = 'Edit Unit'; $activePage = 'units'; $footer = getFooterContent($conn); $errors = [];

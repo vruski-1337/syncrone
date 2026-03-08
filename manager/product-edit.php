@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 
 $id  = (int)($_GET['id'] ?? 0);
 $cid = (int)$_SESSION['company_id'];
@@ -41,13 +41,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pur_price = (float)($_POST['purchase_price'] ?? 0);
         $sel_price = (float)($_POST['selling_price'] ?? 0);
         $stock     = (float)($_POST['stock_quantity'] ?? 0);
+        $lowStock  = (float)($_POST['low_stock_threshold'] ?? 10);
+        $expiry    = trim($_POST['expiry_date'] ?? '');
         $desc      = trim($_POST['description'] ?? '');
 
         if (!$name) $errors[] = 'Product name is required.';
+        if ($lowStock < 0) $errors[] = 'Low stock threshold cannot be negative.';
 
         if (empty($errors)) {
-            $stmt = $conn->prepare("UPDATE products SET name=?, category_id=?, unit_id=?, purchase_price=?, selling_price=?, stock_quantity=?, description=?, updated_at=NOW() WHERE id=? AND company_id=?");
-            $stmt->bind_param('siidddsii', $name, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $desc, $id, $cid);
+            $expiryDate = $expiry !== '' ? $expiry : null;
+            $stmt = $conn->prepare("UPDATE products SET name=?, category_id=?, unit_id=?, purchase_price=?, selling_price=?, stock_quantity=?, low_stock_threshold=?, expiry_date=?, description=?, updated_at=NOW() WHERE id=? AND company_id=?");
+            $stmt->bind_param('siiddddssii', $name, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $lowStock, $expiryDate, $desc, $id, $cid);
             $stmt->execute();
             $stmt->close();
             setFlash('success', 'Product updated.');
@@ -105,16 +109,24 @@ $d = $_POST ?: $product;
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Purchase Price ($)</label>
+                    <label class="form-label fw-semibold">Purchase Price (INR)</label>
                     <input type="number" name="purchase_price" class="form-control" step="0.01" min="0" value="<?= sanitize($d['purchase_price'] ?? '0.00') ?>">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Selling Price ($)</label>
+                    <label class="form-label fw-semibold">Selling Price (INR)</label>
                     <input type="number" name="selling_price" class="form-control" step="0.01" min="0" value="<?= sanitize($d['selling_price'] ?? '0.00') ?>">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Stock Quantity</label>
                     <input type="number" name="stock_quantity" class="form-control" step="0.01" min="0" value="<?= sanitize($d['stock_quantity'] ?? '0') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Low Stock Threshold</label>
+                    <input type="number" name="low_stock_threshold" class="form-control" step="0.01" min="0" value="<?= sanitize($d['low_stock_threshold'] ?? '10') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Expiry Date</label>
+                    <input type="date" name="expiry_date" class="form-control" value="<?= sanitize($d['expiry_date'] ?? '') ?>">
                 </div>
                 <div class="col-12">
                     <label class="form-label fw-semibold">Description</label>

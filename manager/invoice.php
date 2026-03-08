@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 
 $id  = (int)($_GET['id'] ?? 0);
 $cid = (int)$_SESSION['company_id'];
@@ -12,7 +12,9 @@ if (!$id) { header('Location: sales.php'); exit; }
 
 $stmt = $conn->prepare("
     SELECT s.*, u.full_name AS manager_name
+              , d.name AS doctor_name
     FROM sales s LEFT JOIN users u ON u.id = s.manager_id
+     LEFT JOIN doctors d ON d.id = s.doctor_id
     WHERE s.id = ? AND s.company_id = ?
 ");
 $stmt->bind_param('ii', $id, $cid);
@@ -121,6 +123,9 @@ $footer  = getFooterContent($conn);
             <?php if ($sale['customer_phone']): ?>
                 &nbsp;|&nbsp; <strong>Phone:</strong> <?= htmlspecialchars($sale['customer_phone'], ENT_QUOTES, 'UTF-8') ?>
             <?php endif; ?>
+                <?php if (!empty($sale['doctor_name'])): ?>
+                    &nbsp;|&nbsp; <strong>Doctor:</strong> <?= htmlspecialchars($sale['doctor_name'], ENT_QUOTES, 'UTF-8') ?>
+                <?php endif; ?>
             &nbsp;|&nbsp; <strong>Payment:</strong> <?= ucfirst($sale['payment_method']) ?>
         </div>
 
@@ -140,8 +145,8 @@ $footer  = getFooterContent($conn);
                     <td><?= $i + 1 ?></td>
                     <td><?= htmlspecialchars($item['product_name'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                     <td style="text-align:right"><?= $item['quantity'] ?></td>
-                    <td style="text-align:right">$<?= number_format($item['unit_price'], 2) ?></td>
-                    <td style="text-align:right">$<?= number_format($item['subtotal'], 2) ?></td>
+                        <td style="text-align:right"><?= formatCurrency($item['unit_price']) ?></td>
+                        <td style="text-align:right"><?= formatCurrency($item['subtotal']) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -149,13 +154,13 @@ $footer  = getFooterContent($conn);
 
         <div class="inv-totals">
             <table>
-                <tr><td class="text-muted">Subtotal:</td><td class="text-end">$<?= number_format($sale['total_amount'], 2) ?></td></tr>
+                    <tr><td class="text-muted">Subtotal:</td><td class="text-end"><?= formatCurrency($sale['total_amount']) ?></td></tr>
                 <?php if ($sale['discount'] > 0): ?>
-                <tr><td class="text-muted">Discount:</td><td class="text-end text-danger">– $<?= number_format($sale['discount'], 2) ?></td></tr>
+                    <tr><td class="text-muted">Discount:</td><td class="text-end text-danger">- <?= formatCurrency($sale['discount']) ?></td></tr>
                 <?php endif; ?>
                 <tr style="border-top:2px solid #333">
                     <td><strong>TOTAL:</strong></td>
-                    <td class="text-end"><strong>$<?= number_format($sale['final_amount'], 2) ?></strong></td>
+                        <td class="text-end"><strong><?= formatCurrency($sale['final_amount']) ?></strong></td>
                 </tr>
             </table>
         </div>

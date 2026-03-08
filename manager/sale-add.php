@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 
 $pageTitle  = 'New Sale';
 $activePage = 'sale-add';
@@ -19,12 +19,19 @@ $pStmt->bind_param('i', $cid); $pStmt->execute();
 $products = $pStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $pStmt->close();
 
+$dStmt = $conn->prepare("SELECT id, name, specialization FROM doctors WHERE company_id = ? AND is_active = 1 ORDER BY name");
+$dStmt->bind_param('i', $cid);
+$dStmt->execute();
+$doctors = $dStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$dStmt->close();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid CSRF token.';
     } else {
         $customerName  = trim($_POST['customer_name'] ?? '');
         $customerPhone = trim($_POST['customer_phone'] ?? '');
+        $doctorId      = (int)($_POST['doctor_id'] ?? 0) ?: null;
         $paymentMethod = $_POST['payment_method'] ?? 'cash';
         $notes         = trim($_POST['notes'] ?? '');
         $discount      = (float)($_POST['discount'] ?? 0);
@@ -35,6 +42,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($paymentMethod, $allowedPayments)) $paymentMethod = 'cash';
         if ($discount < 0) $discount = 0;
         if ($finalAmount < 0) $finalAmount = 0;
+
+        if ($doctorId) {
+            $docCheck = $conn->prepare("SELECT id FROM doctors WHERE id = ? AND company_id = ? AND is_active = 1");
+            $docCheck->bind_param('ii', $doctorId, $cid);
+            $docCheck->execute();
+            if ($docCheck->get_result()->num_rows === 0) {
+                $errors[] = 'Selected doctor is invalid.';
+                $doctorId = null;
+            }
+            $docCheck->close();
+        }
 
         // Validate items
         $items = [];
@@ -86,8 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->begin_transaction();
             try {
                 // Insert sale
-                $stmt = $conn->prepare("INSERT INTO sales (company_id, manager_id, invoice_number, customer_name, customer_phone, total_amount, discount, final_amount, payment_method, notes) VALUES (?,?,?,?,?,?,?,?,?,?)");
-                $stmt->bind_param('iisssdddss', $cid, $uid, $invoiceNumber, $customerName, $customerPhone, $totalAmount, $discount, $finalAmount, $paymentMethod, $notes);
+                $stmt = $conn->prepare("INSERT INTO sales (company_id, manager_id, doctor_id, invoice_number, customer_name, customer_phone, total_amount, discount, final_amount, payment_method, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt->bind_param('iiisssdddss', $cid, $uid, $doctorId, $invoiceNumber, $customerName, $customerPhone, $totalAmount, $discount, $finalAmount, $paymentMethod, $notes);
                 $stmt->execute();
                 $saleId = $conn->insert_id;
                 $stmt->close();
@@ -161,6 +179,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" name="customer_phone" class="form-control" value="<?= sanitize($_POST['customer_phone'] ?? '') ?>">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label fw-semibold">Referred Doctor</label>
+                        <select name="doctor_id" class="form-select">
+                            <option value="">- None -</option>
+                            <?php foreach ($doctors as $doc): ?>
+                                <option value="<?= $doc['id'] ?>" <?= ((string)($doc['id']) === ($_POST['doctor_id'] ?? '')) ? 'selected' : '' ?>>
+                                    <?= sanitize($doc['name']) ?><?= !empty($doc['specialization']) ? ' (' . sanitize($doc['specialization']) . ')' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-semibold">Payment Method</label>
                         <select name="payment_method" class="form-select">
                             <option value="cash"   <?= ($_POST['payment_method'] ?? 'cash') === 'cash'   ? 'selected' : '' ?>>Cash</option>
@@ -211,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </td>
                                 <td><input type="number" name="quantity[0]" class="form-control form-control-sm qty-input" data-name="quantity" min="0.01" step="0.01" value="1"></td>
                                 <td><input type="number" name="unit_price[0]" class="form-control form-control-sm unit-price" data-name="unit_price" min="0" step="0.01" value="0.00"></td>
-                                <td><span class="row-subtotal fw-semibold text-primary">$0.00</span>
+                                <td><span class="row-subtotal fw-semibold text-primary">₹0.00</span>
                                     <input type="hidden" name="subtotal[0]" class="subtotal-input" data-name="subtotal" value="0"></td>
                                 <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-times"></i></button></td>
                             </tr>
@@ -224,16 +253,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-5">
                             <div class="d-flex justify-content-between mb-1">
                                 <span class="text-muted">Subtotal:</span>
-                                <strong id="totalAmount">$0.00</strong>
+                                <strong id="totalAmount">₹0.00</strong>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="text-muted mb-0">Discount ($):</label>
+                                <label class="text-muted mb-0">Discount (INR):</label>
                                 <input type="number" name="discount" id="discount" class="form-control form-control-sm text-end" style="width:120px" min="0" step="0.01" value="<?= sanitize($_POST['discount'] ?? '0.00') ?>">
                             </div>
                             <hr class="my-2">
                             <div class="d-flex justify-content-between">
                                 <span class="fw-bold fs-5">Final Total:</span>
-                                <span class="fw-bold fs-5 text-success" id="finalAmount">$0.00</span>
+                                <span class="fw-bold fs-5 text-success" id="finalAmount">₹0.00</span>
                             </div>
                         </div>
                     </div>
@@ -265,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </td>
         <td><input type="number" class="form-control form-control-sm qty-input" data-name="quantity" min="0.01" step="0.01" value="1"></td>
         <td><input type="number" class="form-control form-control-sm unit-price" data-name="unit_price" min="0" step="0.01" value="0.00"></td>
-        <td><span class="row-subtotal fw-semibold text-primary">$0.00</span>
+        <td><span class="row-subtotal fw-semibold text-primary">₹0.00</span>
             <input type="hidden" class="subtotal-input" data-name="subtotal" value="0"></td>
         <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-times"></i></button></td>
     </tr>

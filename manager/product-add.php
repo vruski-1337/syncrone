@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 
 $pageTitle  = 'Add Product';
 $activePage = 'products';
@@ -30,14 +30,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pur_price = (float)($_POST['purchase_price'] ?? 0);
         $sel_price = (float)($_POST['selling_price'] ?? 0);
         $stock    = (float)($_POST['stock_quantity'] ?? 0);
+        $lowStock = (float)($_POST['low_stock_threshold'] ?? 10);
+        $expiry   = trim($_POST['expiry_date'] ?? '');
         $desc     = trim($_POST['description'] ?? '');
 
         if (!$name) $errors[] = 'Product name is required.';
         if ($sel_price < 0) $errors[] = 'Selling price cannot be negative.';
+        if ($lowStock < 0) $errors[] = 'Low stock threshold cannot be negative.';
 
         if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO products (company_id, name, category_id, unit_id, purchase_price, selling_price, stock_quantity, description) VALUES (?,?,?,?,?,?,?,?)");
-            $stmt->bind_param('isiiddds', $cid, $name, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $desc);
+            $expiryDate = $expiry !== '' ? $expiry : null;
+            $stmt = $conn->prepare("INSERT INTO products (company_id, name, category_id, unit_id, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description) VALUES (?,?,?,?,?,?,?,?,?,?)");
+            $stmt->bind_param('isiiddddss', $cid, $name, $cat_id, $unit_id, $pur_price, $sel_price, $stock, $lowStock, $expiryDate, $desc);
             $stmt->execute();
             $stmt->close();
             setFlash('success', "Product '{$name}' added successfully.");
@@ -60,7 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <?php include 'layout-top.php'; ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0 fw-bold"><i class="fas fa-plus-circle me-2"></i>Add Product</h5>
-    <a href="products.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+    <div class="d-flex gap-2">
+        <a href="product-bulk-add.php" class="btn btn-success btn-sm"><i class="fas fa-table me-1"></i>Bulk Add</a>
+        <a href="products.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+    </div>
 </div>
 <?php if ($errors): ?>
     <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e) echo '<li>' . sanitize($e) . '</li>'; ?></ul></div>
@@ -94,16 +101,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Purchase Price ($)</label>
+                    <label class="form-label fw-semibold">Purchase Price (INR)</label>
                     <input type="number" name="purchase_price" class="form-control" step="0.01" min="0" value="<?= sanitize($_POST['purchase_price'] ?? '0.00') ?>">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Selling Price ($)</label>
+                    <label class="form-label fw-semibold">Selling Price (INR)</label>
                     <input type="number" name="selling_price" class="form-control" step="0.01" min="0" value="<?= sanitize($_POST['selling_price'] ?? '0.00') ?>">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Stock Quantity</label>
                     <input type="number" name="stock_quantity" class="form-control" step="0.01" min="0" value="<?= sanitize($_POST['stock_quantity'] ?? '0') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Low Stock Threshold</label>
+                    <input type="number" name="low_stock_threshold" class="form-control" step="0.01" min="0" value="<?= sanitize($_POST['low_stock_threshold'] ?? '10') ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Expiry Date</label>
+                    <input type="date" name="expiry_date" class="form-control" value="<?= sanitize($_POST['expiry_date'] ?? '') ?>">
                 </div>
                 <div class="col-12">
                     <label class="form-label fw-semibold">Description</label>

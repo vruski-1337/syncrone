@@ -4,7 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 requireLogin();
-requireRole('manager');
+requireAnyRole(['manager', 'owner']);
 
 $pageTitle  = 'Products';
 $activePage = 'products';
@@ -49,7 +49,10 @@ $stmt->close();
 <?= renderFlash() ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0 fw-bold"><i class="fas fa-pills me-2"></i>Products</h5>
-    <a href="product-add.php" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Product</a>
+    <div class="d-flex gap-2">
+        <a href="product-bulk-add.php" class="btn btn-success btn-sm"><i class="fas fa-table me-1"></i>Bulk Add</a>
+        <a href="product-add.php" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Product</a>
+    </div>
 </div>
 <div class="card table-card">
     <div class="card-header">
@@ -66,11 +69,11 @@ $stmt->close();
     <div class="table-responsive">
         <table class="table table-hover table-striped mb-0">
             <thead>
-                <tr><th>#</th><th>Product Name</th><th>Category</th><th>Unit</th><th>Purchase Price</th><th>Selling Price</th><th>Stock</th><th>Actions</th></tr>
+                <tr><th>#</th><th>Product Name</th><th>Category</th><th>Unit</th><th>Purchase Price</th><th>Selling Price</th><th>Stock</th><th>Expiry</th><th>Actions</th></tr>
             </thead>
             <tbody>
             <?php if (empty($products)): ?>
-                <tr><td colspan="8" class="text-center py-4 text-muted">
+                <tr><td colspan="9" class="text-center py-4 text-muted">
                     <i class="fas fa-pills fa-2x mb-2 d-block opacity-25"></i>No products found.
                 </td></tr>
             <?php else: foreach ($products as $i => $p): ?>
@@ -85,12 +88,28 @@ $stmt->close();
                     <td><?= formatCurrency($p['purchase_price']) ?></td>
                     <td><?= formatCurrency($p['selling_price']) ?></td>
                     <td>
+                        <?php $threshold = (float)($p['low_stock_threshold'] ?? 10); ?>
                         <?php if ($p['stock_quantity'] <= 0): ?>
                             <span class="badge bg-danger"><?= $p['stock_quantity'] ?></span>
-                        <?php elseif ($p['stock_quantity'] <= 10): ?>
+                        <?php elseif ($p['stock_quantity'] <= $threshold): ?>
                             <span class="badge bg-warning text-dark"><?= $p['stock_quantity'] ?></span>
                         <?php else: ?>
                             <span class="badge bg-success"><?= $p['stock_quantity'] ?></span>
+                        <?php endif; ?>
+                        <div class="small text-muted">Low at: <?= $threshold ?></div>
+                    </td>
+                    <td>
+                        <?php if (!empty($p['expiry_date'])): ?>
+                            <?php $daysLeft = (int)floor((strtotime($p['expiry_date']) - time()) / 86400); ?>
+                            <?php if ($daysLeft < 0): ?>
+                                <span class="badge bg-danger">Expired</span>
+                            <?php elseif ($daysLeft <= 30): ?>
+                                <span class="badge bg-warning text-dark"><?= formatDate($p['expiry_date']) ?></span>
+                            <?php else: ?>
+                                <span class="badge bg-light text-dark border"><?= formatDate($p['expiry_date']) ?></span>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <span class="text-muted">-</span>
                         <?php endif; ?>
                     </td>
                     <td class="action-btns">

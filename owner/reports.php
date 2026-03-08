@@ -33,6 +33,12 @@ $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+$dStmt = $conn->prepare("\n    SELECT d.name,\n           COUNT(s.id) AS referral_count,\n           COALESCE(SUM(s.final_amount), 0) AS referral_sales\n    FROM doctors d\n    LEFT JOIN sales s ON s.doctor_id = d.id\n        AND s.company_id = d.company_id\n        AND DATE(s.created_at) BETWEEN ? AND ?\n    WHERE d.company_id = ?\n    GROUP BY d.id\n    HAVING referral_count > 0\n    ORDER BY referral_sales DESC, d.name ASC\n");
+$dStmt->bind_param('ssi', $dateFrom, $dateTo, $cid);
+$dStmt->execute();
+$doctorReferrals = $dStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$dStmt->close();
+
 $totalRevenue = array_sum(array_column($rows, 'total_revenue'));
 $totalCost    = array_sum(array_column($rows, 'total_cost'));
 $totalProfit  = array_sum(array_column($rows, 'profit'));
@@ -136,6 +142,31 @@ $totalSales   = array_sum(array_column($rows, 'sales_count'));
                 </tr>
             </tfoot>
             <?php endif; ?>
+        </table>
+    </div>
+</div>
+
+<div class="card table-card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-user-md me-2"></i>Doctor Referral Summary</span>
+        <small class="text-muted">By selected date range</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0">
+            <thead>
+                <tr><th>Doctor</th><th>Referral Count</th><th>Referral Sales</th></tr>
+            </thead>
+            <tbody>
+            <?php if (empty($doctorReferrals)): ?>
+                <tr><td colspan="3" class="text-center py-4 text-muted">No doctor referrals found for this period.</td></tr>
+            <?php else: foreach ($doctorReferrals as $dr): ?>
+                <tr>
+                    <td><?= sanitize($dr['name']) ?></td>
+                    <td><span class="badge bg-info text-dark"><?= (int)$dr['referral_count'] ?></span></td>
+                    <td><strong><?= formatCurrency($dr['referral_sales']) ?></strong></td>
+                </tr>
+            <?php endforeach; endif; ?>
+            </tbody>
         </table>
     </div>
 </div>

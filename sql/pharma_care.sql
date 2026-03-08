@@ -107,6 +107,8 @@ CREATE TABLE IF NOT EXISTS products (
     purchase_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     selling_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     stock_quantity DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    low_stock_threshold DECIMAL(10,2) NOT NULL DEFAULT 10.00,
+    expiry_date DATE NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -115,11 +117,27 @@ CREATE TABLE IF NOT EXISTS products (
     FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Doctors table
+CREATE TABLE IF NOT EXISTS doctors (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    phone VARCHAR(30),
+    specialization VARCHAR(150),
+    commission_rate DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    notes TEXT,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Sales table
 CREATE TABLE IF NOT EXISTS sales (
     id INT AUTO_INCREMENT PRIMARY KEY,
     company_id INT NOT NULL,
     manager_id INT,
+    doctor_id INT,
     invoice_number VARCHAR(50) NOT NULL UNIQUE,
     customer_name VARCHAR(150),
     customer_phone VARCHAR(30),
@@ -130,7 +148,8 @@ CREATE TABLE IF NOT EXISTS sales (
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-    FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- Sale items table
