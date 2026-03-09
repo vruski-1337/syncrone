@@ -52,6 +52,25 @@ $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
         </a>
     </nav>
 
+    <div class="sidebar-section">Suppliers</div>
+    <nav>
+        <a href="../manager/vendors.php" class="<?= $activePage === 'vendors' ? 'active' : '' ?>">
+            <i class="fas fa-truck-loading"></i> Vendors
+        </a>
+        <a href="../manager/purchase-orders.php" class="<?= $activePage === 'purchase-orders' ? 'active' : '' ?>">
+            <i class="fas fa-file-signature"></i> Purchase Orders
+        </a>
+        <a href="../manager/supplier-returns.php" class="<?= $activePage === 'supplier-returns' ? 'active' : '' ?>">
+            <i class="fas fa-undo-alt"></i> Supplier Returns
+        </a>
+        <a href="../manager/indents.php" class="<?= $activePage === 'indents' ? 'active' : '' ?>">
+            <i class="fas fa-clipboard-list"></i> Indents
+        </a>
+        <a href="../manager/shipping.php" class="<?= $activePage === 'shipping' ? 'active' : '' ?>">
+            <i class="fas fa-shipping-fast"></i> Shipping
+        </a>
+    </nav>
+
     <div class="sidebar-section">Reports</div>
     <nav>
         <a href="reports.php" class="<?= $activePage === 'reports' ? 'active' : '' ?>">
@@ -75,6 +94,14 @@ $companyData = getCompanyData($conn, $_SESSION['company_id'] ?? 0);
             &nbsp;&nbsp;&nbsp;&nbsp;
             <i class="fas fa-bullhorn me-2"></i><?= sanitize($companyData['marquee_message']) ?>
         </span>
+    </div>
+    <?php endif; ?>
+
+    <?php if ((int)($companyData['usage_paused'] ?? 0) === 1): ?>
+    <div class="alert alert-warning border-0 rounded-0 mb-0">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Account Paused:</strong>
+        <?= sanitize(trim((string)($companyData['pause_message'] ?? 'Your company is paused for managers. Please renew subscription.')) ?: 'Your company is paused for managers. Please renew subscription.') ?>
     </div>
     <?php endif; ?>
 

@@ -65,13 +65,16 @@ $stmt->close();
                 <?php if ($search): ?><a href="products.php" class="btn btn-sm btn-outline-secondary">Clear</a><?php endif; ?>
             </div>
         </form>
+        <div class="mt-2">
+            <input type="text" id="quickProductFilter" class="form-control form-control-sm" placeholder="Quick filter in current list (name/manufacturer/batch/category/unit)">
+        </div>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive product-scroll-panel">
         <table class="table table-hover table-striped mb-0">
             <thead>
                 <tr><th>#</th><th>Product Name</th><th>Manufacturer</th><th>Batch</th><th>Category</th><th>Unit</th><th>Purchase Price</th><th>Selling Price</th><th>Stock</th><th>Expiry</th><th>Actions</th></tr>
             </thead>
-            <tbody>
+            <tbody id="productsTableBody">
             <?php if (empty($products)): ?>
                 <tr><td colspan="11" class="text-center py-4 text-muted">
                     <i class="fas fa-pills fa-2x mb-2 d-block opacity-25"></i>No products found.
@@ -126,4 +129,19 @@ $stmt->close();
     </div>
     <div class="card-footer text-muted small">Total: <?= count($products) ?> products</div>
 </div>
+<script>
+(function () {
+    const input = document.getElementById('quickProductFilter');
+    const body = document.getElementById('productsTableBody');
+    if (!input || !body) return;
+
+    input.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        body.querySelectorAll('tr').forEach(function (row) {
+            const txt = row.innerText.toLowerCase();
+            row.style.display = q === '' || txt.includes(q) ? '' : 'none';
+        });
+    });
+})();
+</script>
 <?php include 'layout-bottom.php'; ?>

@@ -41,6 +41,12 @@ $iStmt->bind_param('i', $id);
 $iStmt->execute();
 $items = $iStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $iStmt->close();
+
+$rStmt = $conn->prepare("\n    SELECT sr.*, u.full_name AS returned_by_name\n    FROM sale_returns sr\n    LEFT JOIN users u ON u.id = sr.returned_by\n    WHERE sr.sale_id = ?\n    ORDER BY sr.created_at DESC\n");
+$rStmt->bind_param('i', $id);
+$rStmt->execute();
+$returns = $rStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$rStmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,7 +62,9 @@ $iStmt->close();
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0 fw-bold"><i class="fas fa-receipt me-2"></i>Sale: <?= sanitize($sale['invoice_number']) ?></h5>
     <div class="d-flex gap-2">
+        <a href="sale-return.php?id=<?= $id ?>" class="btn btn-outline-warning btn-sm"><i class="fas fa-undo-alt me-1"></i>Return</a>
         <a href="invoice.php?id=<?= $id ?>" class="btn btn-outline-secondary btn-sm" target="_blank"><i class="fas fa-print me-1"></i>Print Invoice</a>
+        <a href="sale-delete.php?id=<?= $id ?>&token=<?= urlencode(generateCsrfToken()) ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this sale? Stock will be restored and this action cannot be undone.')"><i class="fas fa-trash me-1"></i>Delete</a>
         <a href="sales.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
     </div>
 </div>
@@ -109,6 +117,28 @@ $iStmt->close();
                 </table>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card table-card mt-4">
+    <div class="card-header"><i class="fas fa-history me-2"></i>Return History</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Return #</th><th>Date</th><th>Amount</th><th>Reason</th><th>By</th></tr></thead>
+            <tbody>
+            <?php if (empty($returns)): ?>
+                <tr><td colspan="5" class="text-center text-muted py-3">No returns for this sale.</td></tr>
+            <?php else: foreach ($returns as $ret): ?>
+                <tr>
+                    <td><code><?= sanitize($ret['return_number']) ?></code></td>
+                    <td><?= formatDateTime($ret['created_at']) ?></td>
+                    <td><?= formatCurrency($ret['return_amount']) ?></td>
+                    <td><?= sanitize($ret['reason'] ?: '—') ?></td>
+                    <td><?= sanitize($ret['returned_by_name'] ?: '—') ?></td>
+                </tr>
+            <?php endforeach; endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 <?php include 'layout-bottom.php'; ?>

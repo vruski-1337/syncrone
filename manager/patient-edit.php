@@ -178,7 +178,7 @@ $d = $_POST ?: $patient;
             <?php else: foreach ($prescriptions as $i => $rx): ?>
                 <tr>
                     <td><?= $i + 1 ?></td>
-                    <td><a href="<?= sanitize(getPrescriptionUrl($rx['file_name'])) ?>" target="_blank" class="text-decoration-none"><i class="fas fa-paperclip me-1"></i><?= sanitize($rx['original_name'] ?: $rx['file_name']) ?></a></td>
+                    <td><a href="prescription-view.php?id=<?= (int)$rx['id'] ?>" target="_blank" class="text-decoration-none"><i class="fas fa-paperclip me-1"></i><?= sanitize($rx['original_name'] ?: $rx['file_name']) ?></a></td>
                     <td><?= sanitize($rx['notes'] ?: '—') ?></td>
                     <td><?= formatDateTime($rx['uploaded_at']) ?></td>
                 </tr>

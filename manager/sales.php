@@ -88,7 +88,9 @@ $stmt->close();
                     <td><strong><?= formatCurrency($s['final_amount']) ?></strong></td>
                     <td class="action-btns">
                         <a href="sale-view.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-info" title="View"><i class="fas fa-eye"></i></a>
+                        <a href="sale-return.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-warning" title="Return"><i class="fas fa-undo-alt"></i></a>
                         <a href="invoice.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-secondary" title="Print" target="_blank"><i class="fas fa-print"></i></a>
+                        <a href="sale-delete.php?id=<?= $s['id'] ?>&token=<?= urlencode(generateCsrfToken()) ?>" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this sale? Stock will be restored and this action cannot be undone.')"><i class="fas fa-trash"></i></a>
                     </td>
                 </tr>
             <?php endforeach; endif; ?>

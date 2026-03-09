@@ -13,7 +13,7 @@ function requireLogin() {
     $companyId = (int)($_SESSION['company_id'] ?? 0);
     $scriptName = basename($_SERVER['SCRIPT_NAME'] ?? '');
 
-    if (in_array($role, ['owner', 'manager'], true)
+    if ($role === 'manager'
         && $companyId > 0
         && $scriptName !== 'paused.php'
         && $scriptName !== 'logout.php') {

@@ -24,6 +24,19 @@ $unitStmt->execute();
 $units = $unitStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $unitStmt->close();
 
+$categoryByName = [];
+foreach ($categories as $c) {
+    $categoryByName[strtolower(trim((string)$c['name']))] = (int)$c['id'];
+}
+
+$unitByName = [];
+foreach ($units as $u) {
+    $unitByName[strtolower(trim((string)$u['name']))] = (int)$u['id'];
+    if (!empty($u['abbreviation'])) {
+        $unitByName[strtolower(trim((string)$u['abbreviation']))] = (int)$u['id'];
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid CSRF token.';
@@ -79,6 +92,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'expiry_date' => $expiry !== '' ? $expiry : null,
                 'description' => $desc,
             ];
+        }
+
+        if (!empty($_FILES['csv_file']['name'])) {
+            if (!isset($_FILES['csv_file']['tmp_name']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+                $errors[] = 'CSV upload failed.';
+            } else {
+                $fp = fopen($_FILES['csv_file']['tmp_name'], 'r');
+                if (!$fp) {
+                    $errors[] = 'Could not read uploaded CSV file.';
+                } else {
+                    $header = fgetcsv($fp);
+                    if (!$header) {
+                        $errors[] = 'CSV file is empty.';
+                    } else {
+                        $normalizedHeader = array_map(static fn($h) => strtolower(trim((string)$h)), $header);
+                        $map = array_flip($normalizedHeader);
+
+                        while (($csv = fgetcsv($fp)) !== false) {
+                            $csvName = trim((string)($csv[$map['name'] ?? -1] ?? ''));
+                            $csvManufacturer = trim((string)($csv[$map['manufacturer'] ?? -1] ?? ''));
+                            $csvBatch = trim((string)($csv[$map['batch_number'] ?? -1] ?? ''));
+                            $csvCategoryName = strtolower(trim((string)($csv[$map['category'] ?? -1] ?? '')));
+                            $csvUnitName = strtolower(trim((string)($csv[$map['unit'] ?? -1] ?? '')));
+                            $csvPurchase = (float)($csv[$map['purchase_price'] ?? -1] ?? 0);
+                            $csvSelling = (float)($csv[$map['selling_price'] ?? -1] ?? 0);
+                            $csvStock = (float)($csv[$map['stock_quantity'] ?? -1] ?? 0);
+                            $csvThreshold = (float)($csv[$map['low_stock_threshold'] ?? -1] ?? 10);
+                            $csvExpiry = trim((string)($csv[$map['expiry_date'] ?? -1] ?? ''));
+                            $csvDesc = trim((string)($csv[$map['description'] ?? -1] ?? ''));
+
+                            if ($csvName === '') {
+                                continue;
+                            }
+
+                            if ($csvPurchase < 0 || $csvSelling < 0 || $csvStock < 0 || $csvThreshold < 0) {
+                                $errors[] = "Negative values are not allowed for CSV product '{$csvName}'.";
+                                continue;
+                            }
+
+                            $rows[] = [
+                                'name' => $csvName,
+                                'manufacturer' => $csvManufacturer,
+                                'batch_number' => $csvBatch,
+                                'category_id' => $categoryByName[$csvCategoryName] ?? null,
+                                'unit_id' => $unitByName[$csvUnitName] ?? null,
+                                'purchase_price' => $csvPurchase,
+                                'selling_price' => $csvSelling,
+                                'stock_quantity' => $csvStock,
+                                'low_stock_threshold' => $csvThreshold,
+                                'expiry_date' => $csvExpiry !== '' ? $csvExpiry : null,
+                                'description' => $csvDesc,
+                            ];
+                        }
+                    }
+                    fclose($fp);
+                }
+            }
         }
 
         if (empty($rows) && empty($errors)) {
@@ -147,8 +217,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <span><i class="fas fa-list me-2"></i>Add Multiple Products</span>
         <button type="button" class="btn btn-success btn-sm" id="addBulkRowBtn"><i class="fas fa-plus me-1"></i>Add Row</button>
     </div>
+    <div class="card-body border-bottom">
+        <label class="form-label fw-semibold mb-2">Upload CSV (optional)</label>
+        <p class="small text-muted mb-2">Headers: name, manufacturer, batch_number, category, unit, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description</p>
+        <input type="file" name="csv_file" form="bulkProductForm" class="form-control" accept=".csv,text/csv">
+    </div>
     <div class="card-body p-0">
-        <form method="POST" id="bulkProductForm" novalidate>
+        <form method="POST" id="bulkProductForm" enctype="multipart/form-data" novalidate>
+            <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
             <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
             <div class="table-responsive">
                 <table class="table table-bordered table-sm mb-0" id="bulkProductTable">
