@@ -437,7 +437,7 @@ class TempSQLiteConnection {
     }
 }
 
-function mysqlTableExists(mysqli $conn, string $table): bool {
+function mariadbTableExists(mysqli $conn, string $table): bool {
     $stmt = $conn->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?");
     if (!$stmt) {
         return false;
@@ -449,7 +449,7 @@ function mysqlTableExists(mysqli $conn, string $table): bool {
     return $exists;
 }
 
-function mysqlColumnExists(mysqli $conn, string $table, string $column): bool {
+function mariadbColumnExists(mysqli $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?");
     if (!$stmt) {
         return false;
@@ -479,8 +479,8 @@ function runSchemaMigrations($conn): void {
         return;
     }
 
-    if (DB_DRIVER === 'mysql' && $conn instanceof mysqli) {
-        if (!mysqlTableExists($conn, 'patients')) {
+    if (DB_DRIVER === 'mariadb' && $conn instanceof mysqli) {
+        if (!mariadbTableExists($conn, 'patients')) {
             $conn->query("CREATE TABLE IF NOT EXISTS patients (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 company_id INT NOT NULL,
@@ -497,7 +497,7 @@ function runSchemaMigrations($conn): void {
             ) ENGINE=InnoDB");
         }
 
-        if (!mysqlTableExists($conn, 'patient_prescriptions')) {
+        if (!mariadbTableExists($conn, 'patient_prescriptions')) {
             $conn->query("CREATE TABLE IF NOT EXISTS patient_prescriptions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 patient_id INT NOT NULL,
@@ -509,7 +509,7 @@ function runSchemaMigrations($conn): void {
             ) ENGINE=InnoDB");
         }
 
-        if (!mysqlTableExists($conn, 'doctors')) {
+        if (!mariadbTableExists($conn, 'doctors')) {
             $conn->query("CREATE TABLE IF NOT EXISTS doctors (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 company_id INT NOT NULL,
@@ -525,40 +525,40 @@ function runSchemaMigrations($conn): void {
             ) ENGINE=InnoDB");
         }
 
-        if (!mysqlColumnExists($conn, 'companies', 'gst_number')) {
+        if (!mariadbColumnExists($conn, 'companies', 'gst_number')) {
             $conn->query("ALTER TABLE companies ADD COLUMN gst_number VARCHAR(50) NULL AFTER marquee_message");
         }
-        if (!mysqlColumnExists($conn, 'companies', 'gst_percentage')) {
+        if (!mariadbColumnExists($conn, 'companies', 'gst_percentage')) {
             $conn->query("ALTER TABLE companies ADD COLUMN gst_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00 AFTER gst_number");
         }
-        if (!mysqlColumnExists($conn, 'companies', 'tagline')) {
+        if (!mariadbColumnExists($conn, 'companies', 'tagline')) {
             $conn->query("ALTER TABLE companies ADD COLUMN tagline VARCHAR(255) NULL AFTER gst_percentage");
         }
-        if (!mysqlColumnExists($conn, 'companies', 'usage_paused')) {
+        if (!mariadbColumnExists($conn, 'companies', 'usage_paused')) {
             $conn->query("ALTER TABLE companies ADD COLUMN usage_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER tagline");
         }
-        if (!mysqlColumnExists($conn, 'companies', 'pause_message')) {
+        if (!mariadbColumnExists($conn, 'companies', 'pause_message')) {
             $conn->query("ALTER TABLE companies ADD COLUMN pause_message TEXT NULL AFTER usage_paused");
         }
 
-        if (!mysqlColumnExists($conn, 'products', 'manufacturer')) {
+        if (!mariadbColumnExists($conn, 'products', 'manufacturer')) {
             $conn->query("ALTER TABLE products ADD COLUMN manufacturer VARCHAR(200) NULL AFTER name");
         }
-        if (!mysqlColumnExists($conn, 'products', 'batch_number')) {
+        if (!mariadbColumnExists($conn, 'products', 'batch_number')) {
             $conn->query("ALTER TABLE products ADD COLUMN batch_number VARCHAR(100) NULL AFTER manufacturer");
         }
 
-        if (!mysqlColumnExists($conn, 'products', 'low_stock_threshold')) {
+        if (!mariadbColumnExists($conn, 'products', 'low_stock_threshold')) {
             $conn->query("ALTER TABLE products ADD COLUMN low_stock_threshold DECIMAL(10,2) NOT NULL DEFAULT 10.00 AFTER stock_quantity");
         }
-        if (!mysqlColumnExists($conn, 'products', 'expiry_date')) {
+        if (!mariadbColumnExists($conn, 'products', 'expiry_date')) {
             $conn->query("ALTER TABLE products ADD COLUMN expiry_date DATE NULL AFTER low_stock_threshold");
         }
-        if (!mysqlColumnExists($conn, 'sales', 'doctor_id')) {
+        if (!mariadbColumnExists($conn, 'sales', 'doctor_id')) {
             $conn->query("ALTER TABLE sales ADD COLUMN doctor_id INT NULL AFTER manager_id");
             $conn->query("ALTER TABLE sales ADD CONSTRAINT fk_sales_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE SET NULL");
         }
-        if (!mysqlColumnExists($conn, 'sales', 'patient_id')) {
+        if (!mariadbColumnExists($conn, 'sales', 'patient_id')) {
             $conn->query("ALTER TABLE sales ADD COLUMN patient_id INT NULL AFTER doctor_id");
             $conn->query("ALTER TABLE sales ADD CONSTRAINT fk_sales_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL");
         }
@@ -649,9 +649,9 @@ if (class_exists('mysqli') && !$forceSqlite) {
     try {
         $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
     } catch (mysqli_sql_exception $e) {
-        $hint = ' Ensure MySQL is running and DB settings are correct.';
+        $hint = ' Ensure MariaDB is running and DB settings are correct.';
         if (stripos($e->getMessage(), 'No such file or directory') !== false) {
-            $hint = ' Socket connection failed. Use DB_HOST=127.0.0.1 for TCP and verify MySQL is running.';
+            $hint = ' Socket connection failed. Use DB_HOST=127.0.0.1 for TCP and verify MariaDB is running.';
         }
         die('Database connection failed: ' . $e->getMessage() . $hint);
     }
@@ -660,10 +660,10 @@ if (class_exists('mysqli') && !$forceSqlite) {
         die('Connection failed: ' . $conn->connect_error);
     }
     $conn->set_charset('utf8mb4');
-    define('DB_DRIVER', 'mysql');
+    define('DB_DRIVER', 'mariadb');
 } else {
     if (!class_exists('PDO') || !in_array('sqlite', PDO::getAvailableDrivers(), true)) {
-        die('MySQLi is not enabled and SQLite PDO driver is unavailable. Install php-mysql or php-sqlite3.');
+        die('MySQLi (MariaDB/MySQL) is not enabled and SQLite PDO driver is unavailable. Install php-mysql or php-sqlite3.');
     }
 
     $sqlitePath = getenv('TEMP_SQLITE_PATH') ?: sys_get_temp_dir() . '/pharma_care_tmp.sqlite';
