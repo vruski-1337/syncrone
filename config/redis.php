@@ -88,7 +88,7 @@ function getRedisClient() {
                 $params['password'] = REDIS_PASSWORD;
             }
 
-            $predis = new Predis\Client($params, ['prefix' => REDIS_PREFIX]);
+            $predis = new \Predis\Client($params, ['prefix' => REDIS_PREFIX]);
             $predis->ping();
             $client = $predis;
             return $client;
