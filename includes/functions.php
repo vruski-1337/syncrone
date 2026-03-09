@@ -1,0 +1,237 @@
+<?php
+
+function sanitize($input) {
+    return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
+}
+
+function formatCurrency($amount) {
+    return '₹' . number_format((float)$amount, 2);
+}
+
+function formatDate($date) {
+    if (!$date) return 'N/A';
+    return date('M d, Y', strtotime($date));
+}
+
+function formatDateTime($date) {
+    if (!$date) return 'N/A';
+    return date('M d, Y h:i A', strtotime($date));
+}
+
+function generateInvoiceNumber() {
+    return 'INV-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
+}
+
+function getCompanyData($conn, $company_id) {
+    $stmt = $conn->prepare("
+        SELECT c.*, s.name AS subscription_name, s.price AS subscription_price,
+               cs.start_date, cs.end_date,
+               DATEDIFF(cs.end_date, CURDATE()) AS days_remaining
+        FROM companies c
+        LEFT JOIN company_subscriptions cs ON cs.company_id = c.id AND cs.is_active = 1
+        LEFT JOIN subscriptions s ON s.id = cs.subscription_id
+        WHERE c.id = ?
+        LIMIT 1
+    ");
+    $stmt->bind_param('i', $company_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $data = $result->fetch_assoc();
+    $stmt->close();
+    return $data;
+}
+
+function checkSubscription($conn, $company_id) {
+    $stmt = $conn->prepare("
+        SELECT cs.end_date, DATEDIFF(cs.end_date, CURDATE()) AS days_remaining
+        FROM company_subscriptions cs
+        WHERE cs.company_id = ? AND cs.is_active = 1
+        ORDER BY cs.end_date DESC
+        LIMIT 1
+    ");
+    $stmt->bind_param('i', $company_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $sub = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$sub) {
+        return ['status' => 'none', 'days_remaining' => 0];
+    }
+    $days = (int)$sub['days_remaining'];
+    if ($days < 0) {
+        return ['status' => 'expired', 'days_remaining' => $days];
+    }
+    if ($days <= 7) {
+        return ['status' => 'expiring', 'days_remaining' => $days];
+    }
+    return ['status' => 'active', 'days_remaining' => $days];
+}
+
+function getFooterContent($conn) {
+    $result = $conn->query("SELECT content FROM footer_settings WHERE id = 1 LIMIT 1");
+    if ($result && $row = $result->fetch_assoc()) {
+        return $row['content'];
+    }
+    return '&copy; ' . date('Y') . ' Pharma Care. All rights reserved.';
+}
+
+function getActiveAlerts($conn) {
+    $result = $conn->query("SELECT * FROM alerts WHERE is_active = 1 ORDER BY created_at DESC");
+    if ($result) {
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+    return [];
+}
+
+function uploadLogo($file) {
+    $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $maxSize = 2 * 1024 * 1024; // 2MB
+
+    if (!isset($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
+        return ['success' => false, 'error' => 'Upload failed.'];
+    }
+    if ($file['size'] > $maxSize) {
+        return ['success' => false, 'error' => 'File too large. Max 2MB.'];
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    if (!in_array($mime, $allowed)) {
+        return ['success' => false, 'error' => 'Invalid file type. Only JPG, PNG, GIF, WEBP allowed.'];
+    }
+
+    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime];
+    $filename = bin2hex(random_bytes(16)) . '.' . $ext;
+    $logoDir = UPLOAD_PATH . 'logos/';
+    if (!is_dir($logoDir) && !mkdir($logoDir, 0775, true) && !is_dir($logoDir)) {
+        return ['success' => false, 'error' => 'Upload directory is not available.'];
+    }
+    if (!is_writable($logoDir)) {
+        return ['success' => false, 'error' => 'Upload directory is not writable.'];
+    }
+
+    $dest = $logoDir . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $dest)) {
+        return ['success' => false, 'error' => 'Could not save file.'];
+    }
+
+    return ['success' => true, 'filename' => $filename];
+}
+
+function deleteLogo($filename) {
+    if ($filename && file_exists(UPLOAD_PATH . 'logos/' . $filename)) {
+        unlink(UPLOAD_PATH . 'logos/' . $filename);
+    }
+}
+
+function getInventoryAlerts($conn, $companyId, $expiryDays = 30) {
+    $lowStockItems = [];
+    $expiringItems = [];
+
+    $stmt = $conn->prepare("\n        SELECT id, name, stock_quantity, low_stock_threshold, expiry_date\n        FROM products\n        WHERE company_id = ?\n          AND stock_quantity <= COALESCE(low_stock_threshold, 10)\n        ORDER BY stock_quantity ASC, name ASC\n        LIMIT 10\n    ");
+    $stmt->bind_param('i', $companyId);
+    $stmt->execute();
+    $lowStockItems = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $stmt = $conn->prepare("\n        SELECT id, name, stock_quantity, expiry_date\n        FROM products\n        WHERE company_id = ?\n          AND expiry_date IS NOT NULL\n          AND expiry_date <> ''\n          AND DATEDIFF(expiry_date, CURDATE()) <= ?\n        ORDER BY expiry_date ASC, name ASC\n        LIMIT 10\n    ");
+    $stmt->bind_param('ii', $companyId, $expiryDays);
+    $stmt->execute();
+    $expiringItems = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return [
+        'low_stock' => $lowStockItems,
+        'expiring'  => $expiringItems,
+    ];
+}
+
+function getLogoUrl($filename, $baseDepth = 1) {
+    if (!$filename) return null;
+    $prefix = str_repeat('../', $baseDepth);
+    return $prefix . 'uploads/logos/' . $filename;
+}
+
+function uploadPrescription($file) {
+    $allowed = [
+        'application/pdf' => 'pdf',
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+    $maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!isset($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
+        return ['success' => false, 'error' => 'Prescription upload failed.'];
+    }
+    if ($file['size'] > $maxSize) {
+        return ['success' => false, 'error' => 'Prescription file too large. Max 5MB.'];
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    if (!isset($allowed[$mime])) {
+        return ['success' => false, 'error' => 'Invalid prescription format. Use PDF/JPG/PNG/WEBP.'];
+    }
+
+    $dir = UPLOAD_PATH . 'prescriptions/';
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return ['success' => false, 'error' => 'Prescription directory is not available.'];
+    }
+    if (!is_writable($dir)) {
+        return ['success' => false, 'error' => 'Prescription directory is not writable.'];
+    }
+
+    $ext = $allowed[$mime];
+    $filename = 'rx_' . bin2hex(random_bytes(12)) . '.' . $ext;
+    $dest = $dir . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $dest)) {
+        return ['success' => false, 'error' => 'Could not save prescription file.'];
+    }
+
+    return [
+        'success' => true,
+        'filename' => $filename,
+        'original_name' => $file['name'] ?? $filename,
+    ];
+}
+
+function deletePrescriptionFile($filename) {
+    if ($filename && file_exists(UPLOAD_PATH . 'prescriptions/' . $filename)) {
+        unlink(UPLOAD_PATH . 'prescriptions/' . $filename);
+    }
+}
+
+function getPrescriptionUrl($filename, $baseDepth = 1) {
+    if (!$filename) return null;
+    $prefix = str_repeat('../', $baseDepth);
+    return $prefix . 'uploads/prescriptions/' . $filename;
+}
+
+function renderFlash() {
+    $flash = getFlash();
+    if (!$flash) return '';
+    $type = sanitize($flash['type']);
+    $msg  = sanitize($flash['message']);
+    return "<div class=\"alert alert-{$type} alert-dismissible fade show\" role=\"alert\">"
+         . "<i class=\"fas fa-info-circle me-2\"></i>{$msg}"
+         . "<button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"alert\"></button>"
+         . "</div>";
+}
+
+function renderSubscriptionWarning($subStatus) {
+    if ($subStatus['status'] === 'expired') {
+        return '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Your subscription has <strong>expired</strong>. Please renew to continue using the system.</div>';
+    }
+    if ($subStatus['status'] === 'expiring') {
+        $days = $subStatus['days_remaining'];
+        return "<div class=\"alert alert-warning\"><i class=\"fas fa-clock me-2\"></i>Your subscription expires in <strong>{$days} day(s)</strong>. Please renew soon.</div>";
+    }
+    if ($subStatus['status'] === 'none') {
+        return '<div class="alert alert-warning"><i class="fas fa-exclamation-circle me-2"></i>No active subscription found. Please contact the administrator.</div>';
+    }
+    return '';
+}
