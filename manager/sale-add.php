@@ -249,6 +249,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <i class="fas fa-plus me-1"></i>Add Row
                     </button>
                 </div>
+                <div class="card-body border-bottom">
+                    <label class="form-label fw-semibold mb-2">Quick Product Search</label>
+                    <input type="text" id="saleProductFilter" class="form-control form-control-sm mb-2" placeholder="Search product list by name">
+                    <div class="product-scroll-panel border rounded p-2" id="saleProductList">
+                        <?php foreach ($products as $p): ?>
+                            <div class="small py-1 sale-product-row" data-name="<?= strtolower(sanitize($p['name'])) ?>">
+                                <strong><?= sanitize($p['name']) ?></strong>
+                                <span class="text-muted"> | Stock: <?= (float)$p['stock_quantity'] ?> | Price: <?= formatCurrency($p['selling_price']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table mb-0" id="saleItemsTable">
                         <thead>
@@ -333,5 +345,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-times"></i></button></td>
     </tr>
 </template>
+
+<script>
+(function () {
+    const filter = document.getElementById('saleProductFilter');
+    const rows = document.querySelectorAll('.sale-product-row');
+    if (!filter || rows.length === 0) return;
+
+    filter.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        rows.forEach(function (row) {
+            const name = row.getAttribute('data-name') || '';
+            row.style.display = q === '' || name.includes(q) ? '' : 'none';
+        });
+    });
+})();
+</script>
 
 <?php include 'layout-bottom.php'; ?>

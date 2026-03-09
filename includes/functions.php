@@ -150,8 +150,11 @@ function getInventoryAlerts($conn, $companyId, $expiryDays = 30) {
 
 function getLogoUrl($filename, $baseDepth = 1) {
     if (!$filename) return null;
+    if (defined('SITE_URL')) {
+        return rtrim(SITE_URL, '/') . '/uploads/logos/' . rawurlencode($filename);
+    }
     $prefix = str_repeat('../', $baseDepth);
-    return $prefix . 'uploads/logos/' . $filename;
+    return $prefix . 'uploads/logos/' . rawurlencode($filename);
 }
 
 function uploadPrescription($file) {
@@ -207,8 +210,11 @@ function deletePrescriptionFile($filename) {
 
 function getPrescriptionUrl($filename, $baseDepth = 1) {
     if (!$filename) return null;
+    if (defined('SITE_URL')) {
+        return rtrim(SITE_URL, '/') . '/uploads/prescriptions/' . rawurlencode($filename);
+    }
     $prefix = str_repeat('../', $baseDepth);
-    return $prefix . 'uploads/prescriptions/' . $filename;
+    return $prefix . 'uploads/prescriptions/' . rawurlencode($filename);
 }
 
 function renderFlash() {

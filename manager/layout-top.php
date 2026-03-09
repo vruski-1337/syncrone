@@ -58,6 +58,25 @@ $roleBadge   = $currentRole === 'owner' ? 'bg-success' : 'bg-info text-dark';
             <i class="fas fa-sign-out-alt"></i> Logout
         </a>
     </nav>
+
+    <div class="sidebar-section">Suppliers</div>
+    <nav>
+        <a href="vendors.php" class="<?= $activePage === 'vendors' ? 'active' : '' ?>">
+            <i class="fas fa-truck-loading"></i> Vendors
+        </a>
+        <a href="purchase-orders.php" class="<?= $activePage === 'purchase-orders' ? 'active' : '' ?>">
+            <i class="fas fa-file-signature"></i> Purchase Orders
+        </a>
+        <a href="supplier-returns.php" class="<?= $activePage === 'supplier-returns' ? 'active' : '' ?>">
+            <i class="fas fa-undo-alt"></i> Supplier Returns
+        </a>
+        <a href="indents.php" class="<?= $activePage === 'indents' ? 'active' : '' ?>">
+            <i class="fas fa-clipboard-list"></i> Indents
+        </a>
+        <a href="shipping.php" class="<?= $activePage === 'shipping' ? 'active' : '' ?>">
+            <i class="fas fa-shipping-fast"></i> Shipping
+        </a>
+    </nav>
 </div>
 
 <div class="main-wrapper">
