@@ -94,63 +94,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
 
-        if (!empty($_FILES['csv_file']['name'])) {
-            if (!isset($_FILES['csv_file']['tmp_name']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-                $errors[] = 'CSV upload failed.';
-            } else {
-                $fp = fopen($_FILES['csv_file']['tmp_name'], 'r');
-                if (!$fp) {
-                    $errors[] = 'Could not read uploaded CSV file.';
-                } else {
-                    $header = fgetcsv($fp);
-                    if (!$header) {
-                        $errors[] = 'CSV file is empty.';
-                    } else {
-                        $normalizedHeader = array_map(static fn($h) => strtolower(trim((string)$h)), $header);
-                        $map = array_flip($normalizedHeader);
-
-                        while (($csv = fgetcsv($fp)) !== false) {
-                            $csvName = trim((string)($csv[$map['name'] ?? -1] ?? ''));
-                            $csvManufacturer = trim((string)($csv[$map['manufacturer'] ?? -1] ?? ''));
-                            $csvBatch = trim((string)($csv[$map['batch_number'] ?? -1] ?? ''));
-                            $csvCategoryName = strtolower(trim((string)($csv[$map['category'] ?? -1] ?? '')));
-                            $csvUnitName = strtolower(trim((string)($csv[$map['unit'] ?? -1] ?? '')));
-                            $csvPurchase = (float)($csv[$map['purchase_price'] ?? -1] ?? 0);
-                            $csvSelling = (float)($csv[$map['selling_price'] ?? -1] ?? 0);
-                            $csvStock = (float)($csv[$map['stock_quantity'] ?? -1] ?? 0);
-                            $csvThreshold = (float)($csv[$map['low_stock_threshold'] ?? -1] ?? 10);
-                            $csvExpiry = trim((string)($csv[$map['expiry_date'] ?? -1] ?? ''));
-                            $csvDesc = trim((string)($csv[$map['description'] ?? -1] ?? ''));
-
-                            if ($csvName === '') {
-                                continue;
-                            }
-
-                            if ($csvPurchase < 0 || $csvSelling < 0 || $csvStock < 0 || $csvThreshold < 0) {
-                                $errors[] = "Negative values are not allowed for CSV product '{$csvName}'.";
-                                continue;
-                            }
-
-                            $rows[] = [
-                                'name' => $csvName,
-                                'manufacturer' => $csvManufacturer,
-                                'batch_number' => $csvBatch,
-                                'category_id' => $categoryByName[$csvCategoryName] ?? null,
-                                'unit_id' => $unitByName[$csvUnitName] ?? null,
-                                'purchase_price' => $csvPurchase,
-                                'selling_price' => $csvSelling,
-                                'stock_quantity' => $csvStock,
-                                'low_stock_threshold' => $csvThreshold,
-                                'expiry_date' => $csvExpiry !== '' ? $csvExpiry : null,
-                                'description' => $csvDesc,
-                            ];
-                        }
-                    }
-                    fclose($fp);
-                }
-            }
-        }
-
         if (empty($rows) && empty($errors)) {
             $errors[] = 'Add at least one product row.';
         }
@@ -220,7 +163,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card-body border-bottom">
         <label class="form-label fw-semibold mb-2">Upload CSV (optional)</label>
         <p class="small text-muted mb-2">Headers: name, manufacturer, batch_number, category, unit, purchase_price, selling_price, stock_quantity, low_stock_threshold, expiry_date, description</p>
-        <input type="file" name="csv_file" form="bulkProductForm" class="form-control" accept=".csv,text/csv">
+        <div class="input-group">
+            <input type="file" id="csvFileInput" class="form-control" accept=".csv,text/csv">
+            <button type="button" class="btn btn-outline-primary" id="loadCsvBtn"><i class="fas fa-upload me-1"></i>Load CSV Preview</button>
+        </div>
+        <div id="csvLoadMessage" class="mt-2"></div>
     </div>
     <div class="card-body p-0">
         <form method="POST" id="bulkProductForm" enctype="multipart/form-data" novalidate>
@@ -320,7 +267,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const addBtn = document.getElementById('addBulkRowBtn');
     const tbody = document.getElementById('bulkProductBody');
     const template = document.getElementById('bulkRowTemplate');
+    const loadCsvBtn = document.getElementById('loadCsvBtn');
+    const csvFileInput = document.getElementById('csvFileInput');
+    const csvLoadMessage = document.getElementById('csvLoadMessage');
     let rowIndex = 1;
+
+    // Simple CSV parser that handles quoted fields
+    function parseCSV(csv) {
+        const rows = [];
+        let currentRow = [];
+        let currentField = '';
+        let insideQuotes = false;
+
+        for (let i = 0; i < csv.length; i++) {
+            const char = csv[i];
+            const nextChar = csv[i + 1];
+
+            if (char === '"') {
+                if (insideQuotes && nextChar === '"') {
+                    currentField += '"';
+                    i++;
+                } else {
+                    insideQuotes = !insideQuotes;
+                }
+            } else if (char === ',' && !insideQuotes) {
+                currentRow.push(currentField.trim());
+                currentField = '';
+            } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+                if (currentField || currentRow.length > 0) {
+                    currentRow.push(currentField.trim());
+                    if (currentRow.some(field => field)) {
+                        rows.push(currentRow);
+                    }
+                    currentRow = [];
+                    currentField = '';
+                }
+                if (char === '\r' && nextChar === '\n') {
+                    i++;
+                }
+            } else {
+                currentField += char;
+            }
+        }
+
+        if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField.trim());
+            if (currentRow.some(field => field)) {
+                rows.push(currentRow);
+            }
+        }
+
+        return rows;
+    }
 
     function wireRowActions() {
         document.querySelectorAll('.remove-bulk-row').forEach(function (btn) {
@@ -335,6 +333,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
     }
 
+    function addRowToTable(csvRowData, headerMap, index) {
+        const clone = template.content.cloneNode(true);
+        const row = clone.querySelector('tr');
+        row.dataset.index = String(index);
+
+        row.querySelectorAll('[data-name]').forEach(function (el) {
+            el.name = el.dataset.name + '[' + index + ']';
+        });
+
+        // Map CSV columns to form fields
+        const fieldMap = {
+            'name': ['name', 'product name', 'product'],
+            'manufacturer': ['manufacturer', 'mfg'],
+            'batch_number': ['batch_number', 'batch no', 'batch'],
+            'category_id': ['category_id', 'category'],
+            'unit_id': ['unit_id', 'unit'],
+            'purchase_price': ['purchase_price', 'purchase price', 'purchase'],
+            'selling_price': ['selling_price', 'selling price', 'selling', 'price'],
+            'stock_quantity': ['stock_quantity', 'stock quantity', 'stock', 'qty'],
+            'low_stock_threshold': ['low_stock_threshold', 'low stock', 'threshold'],
+            'expiry_date': ['expiry_date', 'expiry', 'expiry date'],
+            'description': ['description', 'desc', 'notes']
+        };
+
+        // Get values from CSV row
+        const values = {};
+        Object.entries(fieldMap).forEach(([fieldName, aliases]) => {
+            for (const alias of aliases) {
+                if (headerMap[alias.toLowerCase()] !== undefined) {
+                    const colIndex = headerMap[alias.toLowerCase()];
+                    if (csvRowData[colIndex] !== undefined) {
+                        values[fieldName] = csvRowData[colIndex];
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Populate inputs
+        row.querySelector('[data-name="name"]').value = values['name'] || '';
+        row.querySelector('[data-name="manufacturer"]').value = values['manufacturer'] || '';
+        row.querySelector('[data-name="batch_number"]').value = values['batch_number'] || '';
+        row.querySelector('[data-name="category_id"]').value = values['category_id'] || '';
+        row.querySelector('[data-name="unit_id"]').value = values['unit_id'] || '';
+        row.querySelector('[data-name="purchase_price"]').value = values['purchase_price'] || '0.00';
+        row.querySelector('[data-name="selling_price"]').value = values['selling_price'] || '0.00';
+        row.querySelector('[data-name="stock_quantity"]').value = values['stock_quantity'] || '0';
+        row.querySelector('[data-name="low_stock_threshold"]').value = values['low_stock_threshold'] || '10';
+        row.querySelector('[data-name="expiry_date"]').value = values['expiry_date'] || '';
+        row.querySelector('[data-name="description"]').value = values['description'] || '';
+
+        tbody.appendChild(row);
+        wireRowActions();
+    }
+
     addBtn.addEventListener('click', function () {
         const clone = template.content.cloneNode(true);
         const row = clone.querySelector('tr');
@@ -345,6 +398,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         tbody.appendChild(row);
         rowIndex += 1;
         wireRowActions();
+    });
+
+    loadCsvBtn.addEventListener('click', function () {
+        if (!csvFileInput.files || csvFileInput.files.length === 0) {
+            csvLoadMessage.innerHTML = '<div class="alert alert-warning mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Please select a CSV file first.</div>';
+            return;
+        }
+
+        const file = csvFileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            try {
+                const csv = e.target.result;
+                const rows = parseCSV(csv);
+
+                if (rows.length < 2) {
+                    csvLoadMessage.innerHTML = '<div class="alert alert-warning mb-0"><i class="fas fa-exclamation-triangle me-2"></i>CSV file must contain headers and at least one data row.</div>';
+                    return;
+                }
+
+                // Create header map: header_name -> column_index
+                const headerRow = rows[0];
+                const headerMap = {};
+                headerRow.forEach((header, index) => {
+                    headerMap[header.toLowerCase()] = index;
+                });
+
+                // Clear existing table rows
+                const existingRows = tbody.querySelectorAll('tr');
+                existingRows.forEach(row => row.remove());
+
+                // Add data rows from CSV
+                let addedCount = 0;
+                for (let i = 1; i < rows.length; i++) {
+                    const dataRow = rows[i];
+                    if (dataRow.some(cell => cell)) { // Only add non-empty rows
+                        addRowToTable(dataRow, headerMap, rowIndex);
+                        rowIndex += 1;
+                        addedCount++;
+                    }
+                }
+
+                if (addedCount === 0) {
+                    csvLoadMessage.innerHTML = '<div class="alert alert-warning mb-0"><i class="fas fa-exclamation-triangle me-2"></i>No valid data rows found in CSV.</div>';
+                    return;
+                }
+
+                csvLoadMessage.innerHTML = '<div class="alert alert-success mb-0"><i class="fas fa-check-circle me-2"></i><strong>' + addedCount + ' product(s) loaded from CSV.</strong> Review the preview below and click "Save Products" to upload to database.</div>';
+            } catch (error) {
+                csvLoadMessage.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>Error parsing CSV: ' + error.message + '</div>';
+            }
+        };
+
+        reader.onerror = function () {
+            csvLoadMessage.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>Failed to read the file.</div>';
+        };
+
+        reader.readAsText(file);
     });
 
     wireRowActions();
